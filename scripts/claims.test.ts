@@ -128,6 +128,14 @@ test("watch matching stays inside the spec root", () => {
   assert.equal(specForPath(specs, updates)?.label, "Grok");
 });
 
+test("harvest and watcher both dispatch through specForPath", () => {
+  const harvest = readFileSync(join(root, "scripts/harvest.ts"), "utf8");
+  const watcher = readFileSync(join(root, "scripts/watcher.ts"), "utf8");
+  assert.match(harvest, /specForPath\(\[spec\], abs\)/);
+  assert.match(watcher, /specForPath\(allow, abs\)/);
+  assert.equal(/allow\.find\(\(s\) => s\.accept\(abs\)\)/.test(watcher), false);
+});
+
 test("folio off disables and removes the LaunchAgents", () => {
   const off = readFileSync(join(root, "scripts/folio-off.ts"), "utf8");
   assert.match(off, /"unload", "-w"/);

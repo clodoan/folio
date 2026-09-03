@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { ingestFile, loadIngestState } from "./ingest.ts";
-import { ingestOptionsFor, resolveWatchSpecs, type WatchSpec } from "./watchTargets.ts";
+import { ingestOptionsFor, resolveWatchSpecs, specForPath, type WatchSpec } from "./watchTargets.ts";
 
 const collectAccepted = (dir: string, spec: WatchSpec, out: string[]): void => {
   let entries;
@@ -13,7 +13,7 @@ const collectAccepted = (dir: string, spec: WatchSpec, out: string[]): void => {
   for (const e of entries) {
     const abs = join(dir, e.name);
     if (e.isDirectory()) collectAccepted(abs, spec, out);
-    else if (e.isFile() && spec.accept(abs)) out.push(abs);
+    else if (e.isFile() && specForPath([spec], abs)) out.push(abs);
   }
 };
 
