@@ -1,12 +1,22 @@
 import type { LedgerEvent } from "./schema";
 import { LedgerEventSchema, parseEvent } from "./schema";
+import { cursorTranscriptToEvents, looksLikeClaudeOrCursorLine } from "./adapters/cursorTranscript";
 import {
-  cursorTranscriptToEvents,
-  looksLikeClaudeOrCursorLine,
-  type CursorAdapterDefaults,
-} from "./adapters/cursorTranscript";
+  grokTranscriptToEvents,
+  looksLikeGrokRecord,
+  type GrokAdapterDefaults,
+} from "./adapters/grokTui";
+import type { TranscriptFormat } from "./agents";
 
-function firstJsonValue(text: string): unknown | undefined {
+export type IngestParseOpts = {
+  format?: TranscriptFormat;
+  forceCursor?: boolean;
+  forceGrok?: boolean;
+  defaults?: GrokAdapterDefaults;
+  cursorDefaults?: GrokAdapterDefaults;
+};
+
+const firstJsonValue = (text: string): unknown | undefined => {
   const trimmed = text.trim();
   if (!trimmed) return undefined;
   if (trimmed.startsWith("[")) {
@@ -15,6 +25,13 @@ function firstJsonValue(text: string): unknown | undefined {
       if (Array.isArray(arr) && arr.length) return arr[0];
     } catch {
       /* fall through */
+    }
+  }
+  if (trimmed.startsWith("{")) {
+    try {
+      return JSON.parse(trimmed) as unknown;
+    } catch {
+      /* jsonl */
     }
   }
   for (const line of text.split("\n")) {
@@ -27,20 +44,25 @@ function firstJsonValue(text: string): unknown | undefined {
     }
   }
   return undefined;
-}
+};
 
-function isLedgerLike(raw: unknown): boolean {
-  return LedgerEventSchema.safeParse(raw).success;
-}
+const isLedgerLike = (raw: unknown): boolean => LedgerEventSchema.safeParse(raw).success;
 
-export function looksLikeCursorTranscript(text: string): boolean {
+export const looksLikeCursorTranscript = (text: string): boolean => {
   const first = firstJsonValue(text);
   if (first === undefined) return false;
   if (isLedgerLike(first)) return false;
   return looksLikeClaudeOrCursorLine(first);
-}
+};
 
-function recordsFromText(text: string): unknown[] {
+export const looksLikeGrokTranscript = (text: string): boolean => {
+  const first = firstJsonValue(text);
+  if (first === undefined) return false;
+  if (isLedgerLike(first)) return false;
+  return looksLikeGrokRecord(first);
+};
+
+const recordsFromText = (text: string): unknown[] => {
   const trimmed = text.trim();
   if (!trimmed) return [];
   if (trimmed.startsWith("{") && !trimmed.includes("\n")) {
@@ -69,19 +91,34 @@ function recordsFromText(text: string): unknown[] {
     }
   }
   return out;
-}
+};
 
-export function parseIngestText(
+const resolveFormat = (opts?: IngestParseOpts): TranscriptFormat => {
+  if (opts?.format) return opts.format;
+  if (opts?.forceGrok) return "grok";
+  if (opts?.forceCursor) return "transcript";
+  return "auto";
+};
+
+export const parseIngestText = (
   text: string,
-  opts?: { forceCursor?: boolean; cursorDefaults?: CursorAdapterDefaults },
+  opts?: IngestParseOpts,
 ): {
-  mode: "cursor" | "ledger";
+  mode: "transcript" | "grok" | "ledger";
   events: LedgerEvent[];
-} {
-  if (opts?.forceCursor || looksLikeCursorTranscript(text)) {
+} => {
+  const defaults = opts?.defaults ?? opts?.cursorDefaults;
+  const format = resolveFormat(opts);
+  if (format === "grok" || (format === "auto" && looksLikeGrokTranscript(text))) {
     return {
-      mode: "cursor",
-      events: cursorTranscriptToEvents(text, opts?.cursorDefaults),
+      mode: "grok",
+      events: grokTranscriptToEvents(text, defaults),
+    };
+  }
+  if (format === "transcript" || looksLikeCursorTranscript(text)) {
+    return {
+      mode: "transcript",
+      events: cursorTranscriptToEvents(text, defaults),
     };
   }
   const events: LedgerEvent[] = [];
@@ -97,4 +134,4 @@ export function parseIngestText(
     }
   }
   return { mode: "ledger", events };
-}
+};

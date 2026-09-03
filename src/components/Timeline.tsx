@@ -10,7 +10,8 @@ export function Timeline({ events }: Props) {
       <div className="empty-day">
         <p>No events for this day.</p>
         <p className="muted">
-          Drop JSONL into <code>inbox/</code> or wait for Cursor transcripts under <code>~/.cursor/projects/*/agent-transcripts</code>. Canonical store: <code>data/days</code>.
+          Drop JSONL into <code>inbox/</code>, or wait. Folio harvests local agent sessions on this
+          machine. Day files live in <code>data/days</code>.
         </p>
       </div>
     );

@@ -1,8 +1,8 @@
-export function CloudBanner() {
+export const CloudBanner = () => {
   return (
     <aside className="cloud-banner" role="note">
-      <strong>Grok Bot / Cursor Cloud</strong> are not on this machine. Ledger does not scrape
-      cursor.com or grok. Drop an export into <code>inbox/</code> if you want those hours counted.
+      Folio reads local agent traces on this machine. It does not scrape the web. Drop a cloud
+      export into <code>inbox/</code> if you want those hours counted.
     </aside>
   );
-}
+};

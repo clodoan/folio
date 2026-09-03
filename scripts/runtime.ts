@@ -248,7 +248,7 @@ export async function startLedgerRuntime(opts?: {
   if (listen) {
     console.log(`Ledger ${origin} (UI + ingest + /api/summarize)`);
     console.log(`root ${ROOT}`);
-    console.log("Cloud Cursor / Grok Bot are local-file only — no cursor.com scraping.");
+    console.log("Local agents only. No cloud scraping.");
   }
 
   return {

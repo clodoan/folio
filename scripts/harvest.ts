@@ -1,12 +1,9 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
-import { ingestFile, isIngestiblePath, loadIngestState } from "./ingest.ts";
-import { extraWatchFromConfig } from "./folio-config.ts";
-import { INBOX_DIR, ROOT, WATCH_CONFIG } from "./paths.ts";
-import { isSecretPath } from "./watchTargets.ts";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { ingestFile, loadIngestState } from "./ingest.ts";
+import { ingestOptionsFor, resolveWatchSpecs, type WatchSpec } from "./watchTargets.ts";
 
-function collectJsonl(dir: string, out: string[]): void {
+const collectAccepted = (dir: string, spec: WatchSpec, out: string[]): void => {
   let entries;
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -15,87 +12,33 @@ function collectJsonl(dir: string, out: string[]): void {
   }
   for (const e of entries) {
     const abs = join(dir, e.name);
-    if (e.isDirectory()) collectJsonl(abs, out);
-    else if (e.isFile() && e.name.endsWith(".jsonl") && !isSecretPath(abs)) out.push(abs);
+    if (e.isDirectory()) collectAccepted(abs, spec, out);
+    else if (e.isFile() && spec.accept(abs)) out.push(abs);
   }
-}
+};
 
-export function cursorTranscriptFiles(): string[] {
-  const projects = join(homedir(), ".cursor/projects");
-  if (!existsSync(projects)) return [];
+export const harvestFiles = (): string[] => {
   const out: string[] = [];
-  let dirs;
-  try {
-    dirs = readdirSync(projects, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  for (const proj of dirs) {
-    if (!proj.isDirectory()) continue;
-    collectJsonl(join(projects, proj.name, "agent-transcripts"), out);
-  }
-  return out;
-}
-
-function extraDirs(): string[] {
-  const fromEnv = `${process.env.LEDGER_WATCH ?? ""},${process.env.FOLIO_WATCH ?? ""}`
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((p) => resolve(ROOT, p));
-  const fromFile: string[] = [];
-  try {
-    const raw = JSON.parse(readFileSync(WATCH_CONFIG, "utf8")) as { paths?: unknown };
-    if (Array.isArray(raw.paths)) {
-      for (const p of raw.paths) {
-        if (typeof p === "string" && p.trim()) fromFile.push(resolve(ROOT, p));
-      }
+  const seen = new Set<string>();
+  for (const spec of resolveWatchSpecs()) {
+    if (!existsSync(spec.root)) continue;
+    const found: string[] = [];
+    collectAccepted(spec.root, spec, found);
+    for (const abs of found) {
+      if (seen.has(abs)) continue;
+      seen.add(abs);
+      out.push(abs);
     }
-  } catch {
-    /* missing */
-  }
-  return [...fromEnv, ...fromFile, ...extraWatchFromConfig()];
-}
-
-function inboxFiles(): string[] {
-  if (!existsSync(INBOX_DIR)) return [];
-  const out: string[] = [];
-  for (const name of readdirSync(INBOX_DIR)) {
-    const abs = join(INBOX_DIR, name);
-    if (isIngestiblePath(abs) && !isSecretPath(abs)) out.push(abs);
   }
   return out;
-}
+};
 
-function extraFiles(): string[] {
-  const out: string[] = [];
-  for (const d of extraDirs()) {
-    if (!existsSync(d)) continue;
-    collectJsonl(d, out);
-  }
-  return out;
-}
-
-export function harvestOnce(): number {
+export const harvestOnce = (): number => {
   const state = loadIngestState();
   let added = 0;
-  const files = [...inboxFiles(), ...cursorTranscriptFiles(), ...extraFiles()];
-  const seen = new Set<string>();
-  for (const abs of files) {
-    if (seen.has(abs)) continue;
-    seen.add(abs);
-    const inCursor = /\/\.cursor\/projects\/[^/]+\/agent-transcripts\/.+\.jsonl$/i.test(abs.replace(/\\/g, "/"));
+  for (const abs of harvestFiles()) {
     try {
-      const result = ingestFile(
-        abs,
-        state,
-        inCursor
-          ? {
-              forceCursor: true,
-              cursorDefaults: { provider: "cursor", agent: "cursor-agent", sourcePath: abs },
-            }
-          : undefined,
-      );
+      const result = ingestFile(abs, state, ingestOptionsFor(abs));
       added += result.events ?? 0;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -103,4 +46,4 @@ export function harvestOnce(): number {
     }
   }
   return added;
-}
+};

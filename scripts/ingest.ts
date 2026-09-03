@@ -11,8 +11,7 @@ import {
 } from "node:fs";
 import { basename, dirname, extname } from "node:path";
 import type { LedgerEvent } from "../src/schema.ts";
-import { parseIngestText } from "../src/ingestParse.ts";
-import type { CursorAdapterDefaults } from "../src/adapters/cursorTranscript.ts";
+import { parseIngestText, type IngestParseOpts } from "../src/ingestParse.ts";
 import { DATA_DAYS, INGEST_STATE } from "./paths.ts";
 import { bus } from "./bus.ts";
 import { isSecretPath } from "./watchTargets.ts";
@@ -103,7 +102,7 @@ export function appendEvents(events: LedgerEvent[]): Map<string, number> {
 export type IngestResult = {
   skipped: boolean;
   reason?: string;
-  mode?: "cursor" | "ledger";
+  mode?: "transcript" | "grok" | "ledger";
   events?: number;
   days?: string[];
 };
@@ -128,7 +127,7 @@ function readNewBytes(absPath: string, offset: number, size: number): { text: st
 export function ingestFile(
   absPath: string,
   state: IngestState,
-  opts?: { forceCursor?: boolean; cursorDefaults?: CursorAdapterDefaults },
+  opts?: IngestParseOpts,
 ): IngestResult {
   if (isSecretPath(absPath)) {
     return { skipped: true, reason: "secret" };
@@ -178,8 +177,11 @@ export function ingestFile(
   }
 
   const parsed = parseIngestText(chunk.text, {
+    format: opts?.format,
     forceCursor: opts?.forceCursor,
-    cursorDefaults: opts?.cursorDefaults,
+    forceGrok: opts?.forceGrok,
+    defaults: opts?.defaults ?? opts?.cursorDefaults,
+    cursorDefaults: opts?.defaults ?? opts?.cursorDefaults,
   });
   const counts = appendEvents(parsed.events);
   const added = [...counts.values()].reduce((a, b) => a + b, 0);

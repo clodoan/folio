@@ -8,7 +8,7 @@ export function SessionList({ slices }: Props) {
   if (slices.length === 0) {
     return (
       <p className="muted session-empty">
-        No local sessions yet. Ledger collects Cursor transcripts in the background.
+        No local sessions yet. Folio collects the agent homes that exist on this machine.
       </p>
     );
   }

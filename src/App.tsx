@@ -130,7 +130,7 @@ export default function App() {
         setSummarySource("client");
         downloadText(`ledger-summary-${target}.md`, md, "text/markdown");
         setWrotePath(null);
-        setError("Ingest is not running — downloaded the summary instead of writing data/summaries.");
+        setError("Ingest is not running. Downloaded the summary instead of writing data/summaries.");
       }
       setSummaryOpen(true);
     } catch (err: unknown) {

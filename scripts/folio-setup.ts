@@ -110,4 +110,4 @@ for (const p of [duskPlist, watchPlist]) {
   }
 }
 
-console.log("Folio is watching. Evening letter at dusk. No dashboard.");
+console.log("Folio is watching. Evening letter at dusk.");

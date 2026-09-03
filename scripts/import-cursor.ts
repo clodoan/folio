@@ -21,8 +21,8 @@ function main() {
   const abs = resolve(process.cwd(), file);
   const state = loadIngestState();
   const result = ingestFile(abs, state, {
-    forceCursor: true,
-    cursorDefaults: { provider, agent, sourcePath: abs },
+    format: "transcript",
+    defaults: { provider, agent, sourcePath: abs },
   });
   if (result.skipped) {
     console.log(`Skipped: ${result.reason}`);
