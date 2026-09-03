@@ -70,7 +70,6 @@ export function loadDayIds(day: string): Set<string> {
       const o = JSON.parse(t) as { id?: unknown };
       if (typeof o.id === "string") ids.add(o.id);
     } catch {
-      /* skip */
     }
   }
   return ids;
@@ -178,10 +177,7 @@ export function ingestFile(
 
   const parsed = parseIngestText(chunk.text, {
     format: opts?.format,
-    forceCursor: opts?.forceCursor,
-    forceGrok: opts?.forceGrok,
-    defaults: opts?.defaults ?? opts?.cursorDefaults,
-    cursorDefaults: opts?.defaults ?? opts?.cursorDefaults,
+    defaults: opts?.defaults,
   });
   const counts = appendEvents(parsed.events);
   const added = [...counts.values()].reduce((a, b) => a + b, 0);

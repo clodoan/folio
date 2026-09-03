@@ -10,10 +10,7 @@ import type { TranscriptFormat } from "./agents";
 
 export type IngestParseOpts = {
   format?: TranscriptFormat;
-  forceCursor?: boolean;
-  forceGrok?: boolean;
   defaults?: GrokAdapterDefaults;
-  cursorDefaults?: GrokAdapterDefaults;
 };
 
 const firstJsonValue = (text: string): unknown | undefined => {
@@ -24,14 +21,12 @@ const firstJsonValue = (text: string): unknown | undefined => {
       const arr = JSON.parse(trimmed) as unknown;
       if (Array.isArray(arr) && arr.length) return arr[0];
     } catch {
-      /* fall through */
     }
   }
   if (trimmed.startsWith("{")) {
     try {
       return JSON.parse(trimmed) as unknown;
     } catch {
-      /* jsonl */
     }
   }
   for (const line of text.split("\n")) {
@@ -69,7 +64,6 @@ const recordsFromText = (text: string): unknown[] => {
     try {
       return [JSON.parse(trimmed) as unknown];
     } catch {
-      /* jsonl fallback */
     }
   }
   if (trimmed.startsWith("[")) {
@@ -77,7 +71,6 @@ const recordsFromText = (text: string): unknown[] => {
       const arr = JSON.parse(trimmed) as unknown;
       if (Array.isArray(arr)) return arr;
     } catch {
-      /* jsonl fallback */
     }
   }
   const out: unknown[] = [];
@@ -87,18 +80,12 @@ const recordsFromText = (text: string): unknown[] => {
     try {
       out.push(JSON.parse(t) as unknown);
     } catch {
-      /* skip junk ledger lines */
     }
   }
   return out;
 };
 
-const resolveFormat = (opts?: IngestParseOpts): TranscriptFormat => {
-  if (opts?.format) return opts.format;
-  if (opts?.forceGrok) return "grok";
-  if (opts?.forceCursor) return "transcript";
-  return "auto";
-};
+const resolveFormat = (opts?: IngestParseOpts): TranscriptFormat => opts?.format ?? "auto";
 
 export const parseIngestText = (
   text: string,
@@ -107,7 +94,7 @@ export const parseIngestText = (
   mode: "transcript" | "grok" | "ledger";
   events: LedgerEvent[];
 } => {
-  const defaults = opts?.defaults ?? opts?.cursorDefaults;
+  const defaults = opts?.defaults;
   const format = resolveFormat(opts);
   if (format === "grok" || (format === "auto" && looksLikeGrokTranscript(text))) {
     return {
@@ -129,7 +116,6 @@ export const parseIngestText = (
       try {
         events.push(parseEvent(raw));
       } catch {
-        /* skip junk */
       }
     }
   }

@@ -111,14 +111,6 @@ export const AGENT_KINDS: readonly AgentKind[] = [
   },
 ];
 
-export const KNOWN_PROVIDERS = [
-  ...AGENT_KINDS.map((k) => k.id),
-  "cursor-cloud",
-  "grok-bot",
-] as const;
-
-export type KnownProvider = (typeof KNOWN_PROVIDERS)[number];
-
 const PATH_HINTS: { needle: string; id: string }[] = [
   { needle: "/agentstores/", id: "cursor-cloud" },
   { needle: "cursor-agent-worker", id: "cursor-cloud" },
@@ -136,11 +128,6 @@ const PATH_HINTS: { needle: string; id: string }[] = [
 ];
 
 const HOME_SESSION = /\/\.([a-z0-9_-]+)\/(sessions|projects|conversations|agent-transcripts|chats)(?:\/|$)/i;
-
-export const mergeProviders = (seen: string[]): string[] => {
-  const set = new Set<string>([...KNOWN_PROVIDERS, ...seen]);
-  return [...set].sort();
-};
 
 export const kindForPath = (absPath: string): AgentKind | undefined => {
   const p = absPath.replace(/\\/g, "/").toLowerCase();
@@ -185,16 +172,4 @@ export const formatHintForPath = (absPath: string): TranscriptFormat => {
   if (provider === "grok" || provider === "grok-tui") return "grok";
   if (provider === "cursor" || provider === "cursor-cloud" || provider === "claude") return "transcript";
   return "auto";
-};
-
-export const isGrokSessionPath = (absPath: string): boolean => formatHintForPath(absPath) === "grok";
-
-export const isCursorTranscriptPath = (absPath: string): boolean => {
-  const n = absPath.replace(/\\/g, "/");
-  return /\/\.cursor\/projects\/[^/]+\/agent-transcripts\/.+\.jsonl$/i.test(n);
-};
-
-export const isClaudeCodePath = (absPath: string): boolean => {
-  const n = absPath.replace(/\\/g, "/");
-  return /\/\.claude\/(projects|sessions)\//i.test(n);
 };

@@ -99,19 +99,19 @@ const textFromContent = (content: unknown): string => {
   return parts.join("\n");
 };
 
-export const looksLikeGrokUpdate = (raw: unknown): boolean => {
+const looksLikeGrokUpdate = (raw: unknown): boolean => {
   const o = asRecord(raw);
   if (!o) return false;
   if (o.method !== "session/update") return false;
   return asRecord(o.params) !== null;
 };
 
-export const looksLikeGrokEvent = (raw: unknown): boolean => {
+const looksLikeGrokEvent = (raw: unknown): boolean => {
   const o = asRecord(raw);
   return Boolean(o && typeof o.type === "string" && GROK_EVENT_TYPES.has(o.type));
 };
 
-export const looksLikeGrokSummary = (raw: unknown): boolean => {
+const looksLikeGrokSummary = (raw: unknown): boolean => {
   const o = asRecord(raw);
   if (!o) return false;
   if (typeof o.grok_home === "string") return true;
@@ -132,7 +132,6 @@ const parseRecords = (text: string): unknown[] => {
       const obj = JSON.parse(trimmed) as unknown;
       if (asRecord(obj)) return [obj];
     } catch {
-      /* jsonl */
     }
   }
   if (trimmed.startsWith("[")) {
@@ -140,7 +139,6 @@ const parseRecords = (text: string): unknown[] => {
       const arr = JSON.parse(trimmed) as unknown;
       if (Array.isArray(arr)) return arr;
     } catch {
-      /* jsonl */
     }
   }
   const out: unknown[] = [];
@@ -150,7 +148,6 @@ const parseRecords = (text: string): unknown[] => {
     try {
       out.push(JSON.parse(t) as unknown);
     } catch {
-      /* skip */
     }
   }
   return out;
@@ -225,9 +222,8 @@ const updatesToEvents = (
       (typeof params?.sessionId === "string" && params.sessionId) || sessionDefault;
     const ts = tsToIso(raw.timestamp ?? raw.ts, nowIso);
     const kind = typeof update.sessionUpdate === "string" ? update.sessionUpdate : "";
-    const agent =
-      (typeof asRecord(update._meta)?.modelId === "string" && (asRecord(update._meta)!.modelId as string)) ||
-      agentDefault;
+    const meta = asRecord(update._meta);
+    const agent = (typeof meta?.modelId === "string" && meta.modelId) || agentDefault;
 
     if (CHUNK_UPDATES.has(kind)) {
       const role: EventRole = kind === "user_message_chunk" ? "user" : "agent";

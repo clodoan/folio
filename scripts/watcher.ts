@@ -3,15 +3,13 @@ import { resolve } from "node:path";
 import { watch } from "chokidar";
 import { ingestFile, loadIngestState } from "./ingest.ts";
 import { INBOX_DIR } from "./paths.ts";
-import { ingestOptionsFor, resolveWatchSpecs, specForPath } from "./watchTargets.ts";
+import { ingestOptionsFor, resolveWatchSpecs, specForPath, type WatchSpec } from "./watchTargets.ts";
 
 const DEBOUNCE_MS = 400;
 
-export type WatchSpec = { label: string; root: string };
-
 export type WatcherHandle = {
   close: () => Promise<void>;
-  specs: WatchSpec[];
+  specs: Pick<WatchSpec, "label" | "root">[];
 };
 
 export const startWatcher = (onIngest?: () => void): WatcherHandle => {

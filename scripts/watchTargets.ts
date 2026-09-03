@@ -23,10 +23,7 @@ export type WatchSpec = {
 
 export type IngestFileOpts = {
   format?: TranscriptFormat;
-  forceCursor?: boolean;
-  forceGrok?: boolean;
   defaults?: GrokAdapterDefaults;
-  cursorDefaults?: GrokAdapterDefaults;
 };
 
 const SECRET_NAME = /^(auth\.json|.*cookie.*|.*secret.*|.*token.*|.*credentials.*)$/i;
@@ -49,7 +46,6 @@ const dirIfExists = (p: string): string | null => {
   try {
     if (existsSync(p) && statSync(p).isDirectory()) return p;
   } catch {
-    /* skip */
   }
   return null;
 };
@@ -69,7 +65,7 @@ export const grokHome = (): string => {
 };
 
 const expandHomeDir = (rel: string): string => {
-  if (rel === ".grok/sessions" || rel.startsWith(".grok/")) {
+  if (rel.startsWith(".grok/")) {
     return join(grokHome(), rel.slice(".grok/".length));
   }
   return join(homedir(), rel);
@@ -114,7 +110,6 @@ export const extraWatchRoots = (): string[] => {
       }
     }
   } catch {
-    /* skip */
   }
   return [...new Set([...fromEnv, ...fromFile, ...extraWatchFromConfig()])];
 };
@@ -154,13 +149,7 @@ export const ingestOptionsFor = (absPath: string): IngestFileOpts => {
     sourcePath: absPath,
     ...span,
   };
-  return {
-    format,
-    defaults,
-    cursorDefaults: defaults,
-    forceGrok: format === "grok",
-    forceCursor: format === "transcript",
-  };
+  return { format, defaults };
 };
 
 export const pathUnderRoot = (root: string, absPath: string): boolean => {
