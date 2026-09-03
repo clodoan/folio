@@ -9,16 +9,6 @@ export function drawPage(ctx, page, pxW, pxH) {
 
   const flipY = (x, y) => [x, h - y];
 
-  ctx.strokeStyle = "#c9bfae";
-  ctx.lineWidth = 0.12;
-  for (const ln of page.laid || []) {
-    ctx.globalAlpha = ln.a;
-    ctx.beginPath();
-    ctx.moveTo(0, h - ln.y);
-    ctx.lineTo(w, h - ln.y);
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
   for (const g of page.grain || []) {
     const [x, y] = flipY(g.x, g.y);
     ctx.fillStyle = `rgba(106,94,78,${g.a})`;
@@ -70,25 +60,6 @@ export function drawPage(ctx, page, pxW, pxH) {
       ctx.stroke();
     }
   }
-  ctx.fillStyle = page.ink;
-  for (const d of page.dots || []) {
-    const [x, y] = flipY(d.x, d.y);
-    ctx.beginPath();
-    ctx.arc(x, y, d.r, 0, Math.PI * 2);
-    ctx.fill();
-  }
   ctx.globalCompositeOperation = "source-over";
-
-  ctx.strokeStyle = page.pencilColor;
-  ctx.lineWidth = page.pencilWidth;
-  ctx.lineCap = "round";
-  for (const s of page.pencil || []) {
-    const a = flipY(s.a[0], s.a[1]);
-    const b = flipY(s.b[0], s.b[1]);
-    ctx.beginPath();
-    ctx.moveTo(a[0], a[1]);
-    ctx.lineTo(b[0], b[1]);
-    ctx.stroke();
-  }
   ctx.restore();
 }

@@ -26,7 +26,7 @@ if (hand.tool !== "0.45mm-round-felt") {
 }
 writeFileSync(join(root, "recipes-cursive-v1.json"), JSON.stringify(recipes, null, 2));
 
-const page = composePage(null, SAMPLE_LETTER, SAMPLE_LETTER.day);
+const page = composePage(SAMPLE_LETTER, SAMPLE_LETTER.day);
 const proof = eProof(page);
 console.log("e-proof", JSON.stringify(proof));
 if (!(proof.rms > 0.08)) throw new Error("two e glyphs must differ: " + JSON.stringify(proof));

@@ -1,36 +1,14 @@
-import type { LedgerEvent, EventRole } from "../schema";
-import { dayInPT } from "../schema";
+import type { EventRole, LedgerEvent } from "../schema";
+import { DEFAULT_TIMEZONE, dayInTz } from "../schema";
+import {
+  asRecord,
+  capPayload,
+  previewText,
+  sessionIdFromDefaults,
+  type AdapterDefaults,
+} from "./shared";
 
-export type CursorMessageLine = {
-  ts: string;
-  role: "user" | "assistant" | "system";
-  text: string;
-  sessionId: string;
-  agent?: string;
-  provider?: string;
-};
-
-export type CursorToolLine = {
-  ts: string;
-  type: "tool";
-  name: string;
-  input?: unknown;
-  output?: unknown;
-  sessionId: string;
-  agent?: string;
-  provider?: string;
-};
-
-export type CursorTranscriptLine = CursorMessageLine | CursorToolLine;
-
-export const MAX_PAYLOAD_CHARS = 2000;
-
-export type CursorAdapterDefaults = {
-  provider?: string;
-  agent?: string;
-  sessionId?: string;
-  sourcePath?: string;
-};
+export type CursorAdapterDefaults = AdapterDefaults;
 
 type ContentBlock = {
   type?: string;
@@ -41,39 +19,6 @@ type ContentBlock = {
   content?: unknown;
   tool_use_id?: string;
 };
-
-function asRecord(raw: unknown): Record<string, unknown> | null {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
-  return raw as Record<string, unknown>;
-}
-
-export function capPayload(value: unknown): unknown {
-  try {
-    const s = JSON.stringify(value);
-    if (s === undefined) return undefined;
-    if (s.length <= MAX_PAYLOAD_CHARS) return value;
-    return {
-      truncated: true,
-      chars: s.length,
-      preview: s.slice(0, MAX_PAYLOAD_CHARS),
-    };
-  } catch {
-    return { truncated: true, preview: String(value).slice(0, 200) };
-  }
-}
-
-function previewText(text: string, n = 120): string {
-  const t = text.replace(/\s+/g, " ").trim();
-  if (t.length <= n) return t;
-  return `${t.slice(0, n - 1)}…`;
-}
-
-function sessionFromPath(sourcePath?: string): string {
-  if (!sourcePath) return "unknown";
-  const parts = sourcePath.replace(/\\/g, "/").split("/");
-  const file = parts[parts.length - 1] ?? "unknown";
-  return file.replace(/\.jsonl?$/i, "") || "unknown";
-}
 
 function pickTs(raw: Record<string, unknown>, fallbackIso: string): string {
   const keys = ["ts", "timestamp", "createdAt", "created_at", "time"];
@@ -176,16 +121,14 @@ const SKIP_TYPES = new Set([
   "heartbeat",
 ]);
 
-/**
- * Map Cursor / Claude-code JSONL into Ledger events. Junk lines are skipped.
- */
 export function cursorTranscriptToEvents(
   text: string,
   defaults?: CursorAdapterDefaults,
 ): LedgerEvent[] {
   const providerDefault = defaults?.provider ?? "cursor";
   const agentDefault = defaults?.agent ?? "cursor-agent";
-  const sessionDefault = defaults?.sessionId ?? sessionFromPath(defaults?.sourcePath);
+  const sessionDefault = sessionIdFromDefaults(defaults);
+  const timeZone = defaults?.timeZone ?? DEFAULT_TIMEZONE;
   const events: LedgerEvent[] = [];
   const nowIso = new Date().toISOString();
 
@@ -216,7 +159,7 @@ export function cursorTranscriptToEvents(
       (typeof raw.model === "string" && raw.model) ||
       agentDefault;
     const ts = pickTs(raw, nowIso);
-    const day = dayInPT(ts);
+    const day = dayInTz(ts, timeZone);
 
     if (isToolLine(raw)) {
       const name =

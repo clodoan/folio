@@ -6,9 +6,9 @@ import { pageToPdf } from "../folio-hand/src/renderPdf.js";
 import { pageToPng } from "../folio-hand/src/renderPng.js";
 import { pageToSvg } from "../folio-hand/src/renderSvg.js";
 import { composeLetter, stanzaLines } from "../src/letter.ts";
-import { dayInPT, parseDayJsonl } from "../src/schema.ts";
+import { dayInTz, parseDayJsonl } from "../src/schema.ts";
 import { loadFolioConfig } from "./folio-config.ts";
-import { DATA_DAYS, LETTERS_DIR } from "./paths.ts";
+import { DATA_DAYS, LETTERS_DIR, ensureFolioData } from "./paths.ts";
 
 export type LetterWrite = {
   day: string;
@@ -36,11 +36,12 @@ export function documentsLettersDir(): string | null {
   }
 }
 
-function readDay(day: string) {
+export const readDay = (day: string) => {
+  ensureFolioData();
   const path = join(DATA_DAYS, `${day}.jsonl`);
   if (!existsSync(path)) return [];
   return parseDayJsonl(readFileSync(path, "utf8"));
-}
+};
 
 function copyTo(src: string, dest: string): void {
   mkdirSync(dirname(dest), { recursive: true });
@@ -62,9 +63,9 @@ function svgViewerHtml(svg: string, day: string): string {
 
 export function writeFolioLetter(dayArg?: string): LetterWrite {
   const cfg = loadFolioConfig();
-  const day = dayArg && /^\d{4}-\d{2}-\d{2}$/.test(dayArg) ? dayArg : dayInPT(new Date());
+  const day = dayArg && /^\d{4}-\d{2}-\d{2}$/.test(dayArg) ? dayArg : dayInTz(new Date(), cfg.timezone);
   const events = readDay(day);
-  const letter = composeLetter(day, events, { name: cfg.name, timezone: cfg.timezone });
+  const letter = composeLetter(day, events, { name: cfg.name });
 
   const empty: LetterWrite = {
     day,
@@ -86,7 +87,6 @@ export function writeFolioLetter(dayArg?: string): LetterWrite {
   }
 
   const page = composePage(
-    null,
     {
       day,
       dateLabel: humanDate(day),

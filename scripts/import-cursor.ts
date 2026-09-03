@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
-import { ingestFile, loadIngestState } from "./ingest.ts";
+import { loadFolioConfig } from "./folio-config.ts";
+import { ingestFile, loadIngestState, withIngestLock } from "./ingest.ts";
 
 function argValue(flag: string): string | undefined {
   const i = process.argv.indexOf(flag);
@@ -19,11 +20,12 @@ function main() {
   const provider = argValue("--provider") ?? "cursor";
   const agent = argValue("--agent") ?? "cursor-agent";
   const abs = resolve(process.cwd(), file);
-  const state = loadIngestState();
-  const result = ingestFile(abs, state, {
-    forceCursor: true,
-    cursorDefaults: { provider, agent, sourcePath: abs },
-  });
+  const result = withIngestLock(() =>
+    ingestFile(abs, loadIngestState(), {
+      format: "transcript",
+      defaults: { provider, agent, sourcePath: abs, timeZone: loadFolioConfig().timezone },
+    }),
+  );
   if (result.skipped) {
     console.log(`Skipped: ${result.reason}`);
     return;

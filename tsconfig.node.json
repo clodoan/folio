@@ -18,5 +18,5 @@
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["vite.config.ts", "scripts/**/*.ts", "scripts/**/*.d.ts"]
+  "include": ["scripts/**/*.ts", "scripts/**/*.d.ts"]
 }

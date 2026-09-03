@@ -1,3 +1,4 @@
+import { existsSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -11,7 +12,11 @@ if (process.platform !== "darwin") {
 }
 
 for (const p of files) {
-  const r = spawnSync("launchctl", ["unload", p], { encoding: "utf8" });
+  const r = spawnSync("launchctl", ["unload", "-w", p], { encoding: "utf8" });
   if (r.status === 0) console.log(`unloaded ${p}`);
   else console.log(`unload ${p}: ${(r.stderr || r.stdout || "ok").trim() || "done"}`);
+  if (existsSync(p)) {
+    unlinkSync(p);
+    console.log(`removed ${p}`);
+  }
 }

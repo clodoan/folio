@@ -1,15 +1,11 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { dayInPT } from "../src/schema.ts";
+import { dayInTz } from "../src/schema.ts";
 import { loadFolioConfig } from "./folio-config.ts";
 import { harvestOnce } from "./harvest.ts";
 import { writeFolioLetter } from "./folio-letter.ts";
 import { notifyLetter } from "./notify.ts";
-import { deliveredFlag } from "./paths.ts";
-import { readDayEvents } from "./writeSummary.ts";
+import { isDelivered, markDelivered } from "./paths.ts";
 
-function parts(timeZone: string): { minutes: number; weekday: number } {
-  const now = new Date();
+export const clockParts = (timeZone: string, now = new Date()): { minutes: number } => {
   const hour = Number.parseInt(
     new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", hourCycle: "h23" }).format(now),
     10,
@@ -18,51 +14,34 @@ function parts(timeZone: string): { minutes: number; weekday: number } {
     new Intl.DateTimeFormat("en-US", { timeZone, minute: "2-digit" }).format(now),
     10,
   );
-  const wd = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(now);
-  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
   const h = hour === 24 ? 0 : hour;
-  return { minutes: h * 60 + (Number.isFinite(minute) ? minute : 0), weekday: map[wd] ?? 1 };
-}
+  return { minutes: h * 60 + (Number.isFinite(minute) ? minute : 0) };
+};
 
-function inEveningWindow(minutes: number): boolean {
-  return minutes >= 17 * 60 + 30 && minutes <= 19 * 60;
-}
+export const inEveningWindow = (minutes: number): boolean =>
+  minutes >= 17 * 60 + 30 && minutes <= 19 * 60;
 
-function markDelivered(day: string): void {
-  const p = deliveredFlag(day);
-  mkdirSync(dirname(p), { recursive: true });
-  writeFileSync(p, "1\n", "utf8");
-}
+export const runDusk = (opts?: { now?: Date; force?: boolean }): void => {
+  const cfg = loadFolioConfig();
+  const force = opts?.force ?? process.env.FOLIO_DUSK_FORCE === "1";
+  const now = opts?.now ?? new Date();
+  const parts = clockParts(cfg.timezone, now);
+  const day = dayInTz(now, cfg.timezone);
 
-const cfg = loadFolioConfig();
-const force = process.env.FOLIO_DUSK_FORCE === "1";
-const now = parts(cfg.timezone);
-const day = dayInPT(new Date());
-const weekend = now.weekday === 0 || now.weekday === 6;
+  harvestOnce();
 
-harvestOnce();
+  if (!force && !inEveningWindow(parts.minutes)) return;
+  if (isDelivered(day)) return;
 
-if (!force && !inEveningWindow(now.minutes)) {
-  process.exit(0);
-}
+  const out = writeFolioLetter(day);
+  if (out.silent) return;
 
-if (existsSync(deliveredFlag(day))) {
-  process.exit(0);
-}
+  const openPath = out.homePdf || out.pdfPath || out.homePng || out.pngPath || "";
+  notifyLetter({ day: out.day, body: out.opening, openPath });
+  markDelivered(day);
+  console.log(`dusk delivered ${day}`);
+  console.log(out.opening);
+};
 
-if (weekend) {
-  const events = readDayEvents(day);
-  const sessions = new Set(events.map((e) => e.sessionId));
-  if (sessions.size === 0) process.exit(0);
-}
-
-const out = writeFolioLetter(day);
-if (out.silent) {
-  process.exit(0);
-}
-
-const openPath = out.homePdf || out.pdfPath || out.homePng || out.pngPath || "";
-notifyLetter({ day: out.day, body: out.opening, openPath });
-markDelivered(day);
-console.log(`dusk delivered ${day}`);
-console.log(out.opening);
+const invoked = process.argv[1]?.includes("dusk");
+if (invoked) runDusk();

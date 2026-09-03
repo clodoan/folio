@@ -10,6 +10,7 @@ credentials*
 auth.json
 data/days/*.jsonl
 data/.ingest-state.json
+data/.folio-delivered-*
 data/summaries
 letters/*
 !letters/.gitkeep

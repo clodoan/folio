@@ -28,13 +28,6 @@ export function pageToPdf(page) {
   ops.push(`${rgb(page.paper.color)} rg`);
   ops.push(`0 0 ${W.toFixed(3)} ${H.toFixed(3)} re f`);
 
-  ops.push(`${rgb("#c9bfae")} RG`);
-  ops.push("0.3 w");
-  for (const ln of page.laid || []) {
-    ops.push(`${ln.a.toFixed(3)} g`);
-    ops.push(`${0} ${mm(ln.y).toFixed(3)} m ${W.toFixed(3)} ${mm(ln.y).toFixed(3)} l S`);
-  }
-
   ops.push(`${rgb("#6a5e4e")} rg`);
   for (const g of page.grain || []) {
     ops.push(`q ${g.a.toFixed(3)} g`);
@@ -85,24 +78,6 @@ export function pageToPdf(page) {
       ops.push(`${mm(s.widthMm).toFixed(3)} w`);
       ops.push(strokePath(s.pts));
     }
-  }
-  ops.push(`${rgb(page.ink)} rg`);
-  for (const d of page.dots || []) {
-    const r = mm(d.r);
-    const x = mm(d.x);
-    const y = mm(d.y);
-    const k = 0.5523 * r;
-    ops.push(
-      `${(x + r).toFixed(3)} ${y.toFixed(3)} m ${(x + r).toFixed(3)} ${(y + k).toFixed(3)} ${(x + k).toFixed(3)} ${(y + r).toFixed(3)} ${x.toFixed(3)} ${(y + r).toFixed(3)} c ${(x - k).toFixed(3)} ${(y + r).toFixed(3)} ${(x - r).toFixed(3)} ${(y + k).toFixed(3)} ${(x - r).toFixed(3)} ${y.toFixed(3)} c ${(x - r).toFixed(3)} ${(y - k).toFixed(3)} ${(x - k).toFixed(3)} ${(y - r).toFixed(3)} ${x.toFixed(3)} ${(y - r).toFixed(3)} c ${(x + k).toFixed(3)} ${(y - r).toFixed(3)} ${(x + r).toFixed(3)} ${(y - k).toFixed(3)} ${(x + r).toFixed(3)} ${y.toFixed(3)} c f`,
-    );
-  }
-
-  ops.push(`${rgb(page.pencilColor)} RG`);
-  ops.push(`${mm(page.pencilWidth).toFixed(3)} w 1 J`);
-  for (const s of page.pencil || []) {
-    ops.push(
-      `${mm(s.a[0]).toFixed(3)} ${mm(s.a[1]).toFixed(3)} m ${mm(s.b[0]).toFixed(3)} ${mm(s.b[1]).toFixed(3)} l S`,
-    );
   }
   ops.push("Q");
   const stream = ops.join("\n");
