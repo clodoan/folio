@@ -1,5 +1,5 @@
 import type { LedgerEvent } from "./schema";
-import { computeDayActivity } from "./activity";
+import { splitActivitySlices } from "./activity";
 
 export type LetterStanza = {
   topic: string;
@@ -15,11 +15,8 @@ export type FolioLetter = {
   stanzas: LetterStanza[];
   close: string;
   signatures: string[];
-  stamps: StampKind[];
   silent: boolean;
 };
-
-export type StampKind = "code" | "design" | "letter";
 
 const LEAD_VERBS =
   /^(scaffold|add|confirm|make|fix|update|build|write|turn|sync|create|implement|continue|check|run|open|ship|install|refactor|move|copy|remove|delete|set|get|use|try|please|help|need|want|put|bring|start|stop|keep)\b/i;
@@ -183,16 +180,6 @@ export function agentFirstName(agent: string): string {
   return head.charAt(0).toUpperCase() + head.slice(1).toLowerCase();
 }
 
-function stampFor(topic: string): StampKind | null {
-  const t = topic.toLowerCase();
-  if (/\b(code|script|export|ingest|watch|build|jsonl|adapter|git|shell|config|kit|types?)\b/.test(t)) {
-    return "code";
-  }
-  if (/\b(design|page|layout|css|preview|stamp)\b/.test(t)) return "design";
-  if (/\b(letter|dusk|evening|summary|paper)\b/.test(t)) return "letter";
-  return null;
-}
-
 function looksLikeSessionId(topic: string): boolean {
   return /^sess(ion)?[_\s-]/i.test(topic) || /^session\s/i.test(topic);
 }
@@ -202,11 +189,11 @@ export function composeLetter(
   events: LedgerEvent[],
   opts: { name: string; timezone: string },
 ): FolioLetter {
-  const activity = computeDayActivity(events);
+  const slices = splitActivitySlices(events);
   const seen = new Set<string>();
   const topics: { topic: string; aside: string; beat: string; sessionId: string }[] = [];
 
-  for (const slice of activity.slices) {
+  for (const slice of slices) {
     const sess = events.filter((e) => e.sessionId === slice.sessionId);
     const user = sess.find((e) => e.kind === "message" && e.role === "user");
     const raw = userText(user);
@@ -244,14 +231,6 @@ export function composeLetter(
     names.push(n);
   }
 
-  const stamps: StampKind[] = [];
-  for (const s of stanzas) {
-    const k = stampFor(s.topic);
-    if (!k || stamps.includes(k)) continue;
-    stamps.push(k);
-    if (stamps.length >= 3) break;
-  }
-
   return {
     day,
     name,
@@ -260,88 +239,6 @@ export function composeLetter(
     stanzas,
     close: silent ? "" : "We set the work down.",
     signatures: names,
-    stamps,
     silent,
   };
-}
-
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function stampSvg(kind: StampKind): string {
-  const stroke = "#8a8680";
-  if (kind === "code") {
-    return `<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5 3 L2 7 L5 11" fill="none" stroke="${stroke}" stroke-width="1"/><path d="M9 3 L12 7 L9 11" fill="none" stroke="${stroke}" stroke-width="1"/></svg>`;
-  }
-  if (kind === "design") {
-    return `<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="2.5" y="3.5" width="9" height="7" fill="none" stroke="${stroke}" stroke-width="1"/></svg>`;
-  }
-  return `<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 4 L7 8 L12 4" fill="none" stroke="${stroke}" stroke-width="1"/><rect x="2" y="4" width="10" height="7" fill="none" stroke="${stroke}" stroke-width="1"/></svg>`;
-}
-
-export function renderLetterHtml(letter: FolioLetter): string {
-  const stamps = letter.stamps.map((k) => `<div class="stamp">${stampSvg(k)}</div>`).join("");
-  const stanzas = letter.stanzas
-    .map(
-      (s) => `<p class="stanza"><span class="aside">${esc(s.aside)}</span><span class="topic">${esc(s.topic)}</span>${esc(s.beat)}</p>`,
-    )
-    .join("\n");
-  const opening = letter.opening ? `<p class="opening">${esc(letter.opening)}</p>` : "";
-  const close = letter.close ? `<p class="close">${esc(letter.close)}</p>` : "";
-  const sig = letter.signatures.length
-    ? `<p class="sig">${letter.signatures.map(esc).join(" &nbsp; ")}</p>`
-    : "";
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<title>${esc(letter.day)}</title>
-<style>
-  :root { --paper:#f4efe6; --ink:#1a1714; --pencil:#8a8680; }
-  html, body { margin:0; padding:0; background:var(--paper); color:var(--ink); }
-  html { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  @page { size: 148mm 210mm; margin: 0; }
-  body { font: 12.5pt/1.45 "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif; }
-  .page {
-    width: 148mm; height: 210mm; box-sizing: border-box;
-    padding: 18mm 16mm 16mm 1.4in;
-    position: relative; overflow: hidden; background: var(--paper);
-  }
-  .date {
-    position: absolute; top: 12mm; right: 12mm;
-    font-size: 8pt; letter-spacing: 0.16em;
-    text-transform: uppercase; font-variant: small-caps;
-    color: var(--pencil);
-  }
-  .gutter { position: absolute; left: 8mm; top: 36mm; display:flex; flex-direction:column; gap:10px; }
-  .stamp { opacity: 0.85; }
-  .body { max-width: 26em; }
-  .opening { margin: 8mm 0 6mm; }
-  .stanza { margin: 0 0 1.15em; }
-  .aside { display:block; color: var(--pencil); font-style: italic; font-size: 0.82em; margin-bottom: 0.15em; }
-  .topic { display:block; margin-bottom: 0.2em; }
-  .close { margin-top: 1.4em; }
-  .sig { margin-top: 1.6em; letter-spacing: 0.04em; font-size: 0.92em; }
-</style>
-</head>
-<body>
-  <div class="page">
-    <div class="date">${esc(letter.day)}</div>
-    ${stamps ? `<div class="gutter">${stamps}</div>` : ""}
-    <div class="body">
-      ${opening}
-      ${stanzas}
-      ${close}
-      ${sig}
-    </div>
-  </div>
-</body>
-</html>
-`;
 }

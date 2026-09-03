@@ -3,10 +3,9 @@ import { dirname } from "node:path";
 import { dayInPT } from "../src/schema.ts";
 import { loadFolioConfig } from "./folio-config.ts";
 import { harvestOnce } from "./harvest.ts";
-import { writeFolioLetter } from "./folio-letter.ts";
+import { readDay, writeFolioLetter } from "./folio-letter.ts";
 import { notifyLetter } from "./notify.ts";
 import { deliveredFlag } from "./paths.ts";
-import { readDayEvents } from "./writeSummary.ts";
 
 function parts(timeZone: string): { minutes: number; weekday: number } {
   const now = new Date();
@@ -51,7 +50,7 @@ if (existsSync(deliveredFlag(day))) {
 }
 
 if (weekend) {
-  const events = readDayEvents(day);
+  const events = readDay(day);
   const sessions = new Set(events.map((e) => e.sessionId));
   if (sessions.size === 0) process.exit(0);
 }

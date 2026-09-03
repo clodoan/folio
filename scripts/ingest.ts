@@ -13,7 +13,6 @@ import { basename, dirname, extname } from "node:path";
 import type { LedgerEvent } from "../src/schema.ts";
 import { parseIngestText, type IngestParseOpts } from "../src/ingestParse.ts";
 import { DATA_DAYS, INGEST_STATE } from "./paths.ts";
-import { bus } from "./bus.ts";
 import { isSecretPath } from "./watchTargets.ts";
 
 export type FileCursor = {
@@ -43,7 +42,6 @@ export function loadIngestState(): IngestState {
       return { files };
     }
   } catch {
-    /* missing or corrupt */
   }
   return { files: {} };
 }
@@ -191,8 +189,5 @@ export function ingestFile(
   console.log(
     `ingest ${basename(absPath)} mode=${parsed.mode} parsed=${parsed.events.length} added=${added} days=${days.join(",") || "-"}`,
   );
-  if (added > 0) {
-    bus.note({ file: absPath, events: added, days, mode: parsed.mode });
-  }
   return { skipped: false, mode: parsed.mode, events: added, days };
 }

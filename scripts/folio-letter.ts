@@ -36,11 +36,11 @@ export function documentsLettersDir(): string | null {
   }
 }
 
-function readDay(day: string) {
+export const readDay = (day: string) => {
   const path = join(DATA_DAYS, `${day}.jsonl`);
   if (!existsSync(path)) return [];
   return parseDayJsonl(readFileSync(path, "utf8"));
-}
+};
 
 function copyTo(src: string, dest: string): void {
   mkdirSync(dirname(dest), { recursive: true });

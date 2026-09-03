@@ -4,7 +4,7 @@ type SecretCase = {
 };
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -142,11 +142,22 @@ test("folio off disables and removes the LaunchAgents", () => {
   assert.match(off, /unlinkSync/);
 });
 
-test("readme and setup do not deny the leftover Ledger window", () => {
+test("readme says no dashboard and the window is gone", () => {
   const readme = readFileSync(join(root, "README.md"), "utf8");
-  const setup = readFileSync(join(root, "scripts/folio-setup.ts"), "utf8");
-  assert.equal(readme.includes("No dashboard"), false);
-  assert.equal(setup.includes("No dashboard"), false);
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+    main?: string;
+    scripts?: Record<string, string>;
+  };
+  assert.match(readme, /No dashboard/);
+  assert.equal(/leftover Ledger/.test(readme), false);
   assert.equal(/No sessions that day/.test(readme), false);
   assert.equal(/never reads/.test(readme), false);
+  assert.equal(pkg.scripts?.start, undefined);
+  assert.equal(pkg.scripts?.serve, undefined);
+  assert.equal(pkg.scripts?.electron, undefined);
+  assert.equal(pkg.scripts?.app, undefined);
+  assert.equal(pkg.main, undefined);
+  assert.equal(existsSync(join(root, "src/App.tsx")), false);
+  assert.equal(existsSync(join(root, "scripts/serve.ts")), false);
+  assert.equal(existsSync(join(root, "electron/main.mjs")), false);
 });

@@ -2,7 +2,7 @@
 
 An evening letter from your agents.
 
-Folio reads the agent traces already on this machine and at dusk writes one handwritten A5 page. No account. No scrape. The letter is the product.
+Folio reads the agent traces already on this machine and at dusk writes one handwritten A5 page. No account. No scrape. No dashboard. The letter is the product.
 
 ![A sample Folio letter](docs/letter.png)
 
@@ -57,7 +57,5 @@ That unloads and removes the LaunchAgents. Delete `~/.folio` and `~/Documents/Fo
 ## Privacy
 
 Everything stays on the machine. Harvest and watch share one allowlist. Day JSONL in `data/days` is local scratch and is gitignored.
-
-A leftover Ledger window still lives in the repo (`npm start`). Setup does not start it.
 
 MIT.
