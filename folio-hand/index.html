@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Folio hand — generative writer</title>
+    <style>
+      html, body { margin: 0; background: #2a2724; color: #eee8dc; font: 13px/1.4 ui-sans-serif, system-ui; }
+      header { padding: 12px 16px; display: flex; gap: 16px; align-items: center; }
+      canvas { display: block; margin: 0 auto 24px; box-shadow: 0 8px 40px #0008; background: #F3EBDC; }
+      label { opacity: 0.8; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>recipes-cursive-v1</strong>
+      <label>date <input id="day" type="date" value="2026-09-02" /></label>
+      <span id="meta"></span>
+    </header>
+    <canvas id="c" width="1748" height="2480" style="width:437px;height:620px"></canvas>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

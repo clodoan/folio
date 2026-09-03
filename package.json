@@ -1,0 +1,43 @@
+{
+  "name": "folio",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit",
+    "import-cursor": "tsx scripts/import-cursor.ts",
+    "summarize": "tsx scripts/summarize.ts",
+    "watch": "tsx scripts/watch.ts",
+    "serve": "tsx scripts/serve.ts",
+    "start": "tsx scripts/serve.ts",
+    "daemon": "tsx scripts/serve.ts",
+    "app": "tsc -b && vite build && electron .",
+    "electron": "bash scripts/launch-app.sh",
+    "folio": "tsx scripts/folio.ts",
+    "folio:setup": "tsx scripts/folio-setup.ts",
+    "folio:now": "tsx scripts/folio-now.ts",
+    "folio:off": "tsx scripts/folio-off.ts",
+    "folio:letter": "tsx scripts/folio-letter.ts",
+    "folio:dusk": "tsx scripts/dusk.ts"
+  },
+  "dependencies": {
+    "chokidar": "^5.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsx": "^4.19.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^37.2.0",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.0"
+  },
+  "main": "electron/main.mjs"
+}
