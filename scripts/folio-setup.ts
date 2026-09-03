@@ -111,3 +111,4 @@ for (const p of [duskPlist, watchPlist]) {
 }
 
 console.log("Folio is watching. Evening letter at dusk.");
+console.log("LaunchAgent times use this Mac's clock. The letter window uses the timezone in config.");

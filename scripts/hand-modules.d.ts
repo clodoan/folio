@@ -11,7 +11,6 @@ declare module "../folio-hand/src/page.js" {
   };
   export function humanDate(isoDate: string): string;
   export function composePage(
-    hand: unknown,
     letter?: {
       day?: string;
       dateLabel?: string;

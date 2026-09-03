@@ -1,5 +1,4 @@
 import { pageSeed, rngFromSeed } from "./seed.js";
-import { PENCIL } from "./pencil.js";
 import { FELT } from "./nib.js";
 import { writeWord, HAND } from "./writer.js";
 
@@ -38,7 +37,7 @@ export function humanDate(isoDate) {
 }
 
 /** @param {any} letter */
-export function composePage(_handIgnored, letter = SAMPLE_LETTER, isoDate = letter.day) {
+export function composePage(letter = SAMPLE_LETTER, isoDate = letter.day) {
   const seed = pageSeed(isoDate);
   const rng = rngFromSeed(seed);
   const cap = HAND.capMm;
@@ -50,7 +49,6 @@ export function composePage(_handIgnored, letter = SAMPLE_LETTER, isoDate = lett
   const inkRibbons = [];
   const glyphs = [];
   let serial = 1;
-  const pencil = [];
 
   function wordWidth(word, ctxCap) {
     return writeWord(word, { x: 0, y: 0 }, {
@@ -224,15 +222,8 @@ export function composePage(_handIgnored, letter = SAMPLE_LETTER, isoDate = lett
       lift: s.lift,
     })),
     inkRibbons,
-    stamps: [],
-    dots: [],
-    pencil,
     grain,
-    laid: [],
     ink: PAPER.ink,
-    pencilColor: PENCIL.color,
-    pencilWidth: PENCIL.widthMm,
-    trackingCap: 0,
     nLines: wrapLine(opening, cap, measure).length,
     glyphs,
     scale: 1,

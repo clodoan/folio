@@ -8,6 +8,7 @@ export type AgentKind = {
   homeDirs: string[];
   format: TranscriptFormat;
   pick: AgentPick;
+  pathNeedles?: string[];
 };
 
 export const AGENT_KINDS: readonly AgentKind[] = [
@@ -17,6 +18,7 @@ export const AGENT_KINDS: readonly AgentKind[] = [
     homeDirs: [".cursor/projects"],
     format: "transcript",
     pick: "cursor-transcript",
+    pathNeedles: ["/agentstores/", "cursor-agent-worker", "cursor-cloud", "agent-transcripts"],
   },
   {
     id: "grok",
@@ -24,6 +26,7 @@ export const AGENT_KINDS: readonly AgentKind[] = [
     homeDirs: [".grok/sessions"],
     format: "grok",
     pick: "grok-session",
+    pathNeedles: ["grok-bot", "grok.bot", "grok-tui", "xai-grok-pager", "grok-pager"],
   },
   {
     id: "claude",
@@ -31,6 +34,7 @@ export const AGENT_KINDS: readonly AgentKind[] = [
     homeDirs: [".claude/projects", ".claude/sessions"],
     format: "transcript",
     pick: "jsonl",
+    pathNeedles: ["claude-code"],
   },
   {
     id: "codex",
@@ -111,38 +115,23 @@ export const AGENT_KINDS: readonly AgentKind[] = [
   },
 ];
 
-const PATH_HINTS: { needle: string; id: string }[] = [
-  { needle: "/agentstores/", id: "cursor-cloud" },
-  { needle: "cursor-agent-worker", id: "cursor-cloud" },
-  { needle: "cursor-cloud", id: "cursor-cloud" },
-  { needle: "grok-bot", id: "grok-bot" },
-  { needle: "grok.bot", id: "grok-bot" },
-  { needle: "/.grok/sessions/", id: "grok" },
-  { needle: "grok-tui", id: "grok" },
-  { needle: "xai-grok-pager", id: "grok" },
-  { needle: "grok-pager", id: "grok" },
-  { needle: "/.claude/", id: "claude" },
-  { needle: "claude-code", id: "claude" },
-  { needle: "agent-transcripts", id: "cursor" },
-  { needle: "/.cursor/projects/", id: "cursor" },
-];
-
 const HOME_SESSION = /\/\.([a-z0-9_-]+)\/(sessions|projects|conversations|agent-transcripts|chats)(?:\/|$)/i;
 
 export const kindForPath = (absPath: string): AgentKind | undefined => {
   const p = absPath.replace(/\\/g, "/").toLowerCase();
-  return AGENT_KINDS.find((k) =>
-    k.homeDirs.some((dir) => p.includes(`/${dir.toLowerCase()}/`) || p.endsWith(`/${dir.toLowerCase()}`)),
-  );
+  return AGENT_KINDS.find((k) => {
+    const inHome = k.homeDirs.some(
+      (dir) => p.includes(`/${dir.toLowerCase()}/`) || p.endsWith(`/${dir.toLowerCase()}`),
+    );
+    if (inHome) return true;
+    return (k.pathNeedles ?? []).some((n) => p.includes(n.toLowerCase()));
+  });
 };
 
 export const inferProviderFromPath = (absPath: string): string => {
-  const p = absPath.replace(/\\/g, "/").toLowerCase();
-  for (const hint of PATH_HINTS) {
-    if (p.includes(hint.needle)) return hint.id;
-  }
   const kind = kindForPath(absPath);
   if (kind) return kind.id;
+  const p = absPath.replace(/\\/g, "/").toLowerCase();
   const m = p.match(HOME_SESSION);
   if (m?.[1]) return m[1];
   return "local";
@@ -169,7 +158,7 @@ export const formatHintForPath = (absPath: string): TranscriptFormat => {
   const kind = kindForPath(absPath);
   if (kind) return kind.format;
   const provider = inferProviderFromPath(absPath);
-  if (provider === "grok" || provider === "grok-tui") return "grok";
-  if (provider === "cursor" || provider === "cursor-cloud" || provider === "claude") return "transcript";
+  if (provider === "grok") return "grok";
+  if (provider === "cursor" || provider === "claude") return "transcript";
   return "auto";
 };

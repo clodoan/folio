@@ -11,6 +11,8 @@ import { fileURLToPath } from "node:url";
 import { AGENT_KINDS } from "../src/agents.ts";
 import { composeLetter } from "../src/letter.ts";
 import type { LedgerEvent } from "../src/schema.ts";
+import { dayInTz } from "../src/schema.ts";
+import { inEveningWindow } from "./dusk.ts";
 import { isGrokSessionFile, isSecretPath, specForPath } from "./watchTargets.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -52,20 +54,20 @@ test("grok harvest accepts only the conversation files", () => {
 });
 
 test("letter is silent when topics cannot be extracted", () => {
-  const empty = composeLetter("2026-09-03", [], { name: "Ada", timezone: "America/Los_Angeles" });
+  const empty = composeLetter("2026-09-03", [], { name: "Ada" });
   assert.equal(empty.silent, true);
 
   const noNoun = composeLetter(
     "2026-09-03",
     [event({ id: "1", summary: "how does this work", role: "user", kind: "message" })],
-    { name: "Ada", timezone: "America/Los_Angeles" },
+    { name: "Ada" },
   );
   assert.equal(noNoun.silent, true);
 
   const withTopic = composeLetter(
     "2026-09-03",
     [event({ id: "2", summary: "fix the letter export", role: "user", kind: "message" })],
-    { name: "Ada", timezone: "America/Los_Angeles" },
+    { name: "Ada" },
   );
   assert.equal(withTopic.silent, false);
   assert.match(withTopic.opening, /letter/);
@@ -106,11 +108,17 @@ test("harvest path does not fetch product clouds", () => {
   }
 });
 
-test("dusk window is 5:30pm to 7:00pm and weekends are not a hard skip", () => {
-  const dusk = readFileSync(join(root, "scripts/dusk.ts"), "utf8");
-  assert.match(dusk, /minutes >= 17 \* 60 \+ 30 && minutes <= 19 \* 60/);
-  assert.match(dusk, /weekday === 0 \|\| now\.weekday === 6/);
-  assert.match(dusk, /if \(sessions\.size === 0\) process\.exit\(0\)/);
+test("dusk window is 5:30pm to 7:00pm", () => {
+  assert.equal(inEveningWindow(17 * 60 + 29), false);
+  assert.equal(inEveningWindow(17 * 60 + 30), true);
+  assert.equal(inEveningWindow(19 * 60), true);
+  assert.equal(inEveningWindow(19 * 60 + 1), false);
+});
+
+test("day key follows the given timezone", () => {
+  const instant = "2026-09-04T04:30:00.000Z";
+  assert.equal(dayInTz(instant, "America/New_York"), "2026-09-04");
+  assert.equal(dayInTz(instant, "America/Los_Angeles"), "2026-09-03");
 });
 
 test("watch matching stays inside the spec root", () => {
@@ -134,6 +142,14 @@ test("harvest and watcher both dispatch through specForPath", () => {
   assert.match(harvest, /specForPath\(\[spec\], abs\)/);
   assert.match(watcher, /specForPath\(allow, abs\)/);
   assert.equal(/allow\.find\(\(s\) => s\.accept\(abs\)\)/.test(watcher), false);
+});
+
+test("now and dusk share the delivered flag", () => {
+  const now = readFileSync(join(root, "scripts/folio-now.ts"), "utf8");
+  const dusk = readFileSync(join(root, "scripts/dusk.ts"), "utf8");
+  assert.match(now, /markDelivered\(out\.day\)/);
+  assert.match(dusk, /markDelivered\(day\)/);
+  assert.equal(/weekday === 0/.test(dusk), false);
 });
 
 test("folio off disables and removes the LaunchAgents", () => {
@@ -160,4 +176,9 @@ test("readme says no dashboard and the window is gone", () => {
   assert.equal(existsSync(join(root, "src/App.tsx")), false);
   assert.equal(existsSync(join(root, "scripts/serve.ts")), false);
   assert.equal(existsSync(join(root, "electron/main.mjs")), false);
+  assert.equal(existsSync(join(root, "src/activity.ts")), false);
+  assert.equal(existsSync(join(root, "src/grouping.ts")), false);
+  const watch = readFileSync(join(root, "scripts/watchTargets.ts"), "utf8");
+  assert.equal(/LEDGER_WATCH/.test(watch), false);
+  assert.equal(/WATCH_CONFIG/.test(watch), false);
 });

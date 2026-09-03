@@ -1,30 +1,12 @@
 import { z } from "zod";
 
-export const EventKindSchema = z.enum([
-  "message",
-  "tool",
-  "decision",
-  "proof",
-  "error",
-]);
+export const DEFAULT_TIMEZONE = "America/Los_Angeles";
+
+export const EventKindSchema = z.enum(["message", "tool"]);
 export type EventKind = z.infer<typeof EventKindSchema>;
 
 export const EventRoleSchema = z.enum(["user", "agent", "system"]);
 export type EventRole = z.infer<typeof EventRoleSchema>;
-
-export const DecisionStatusSchema = z.enum([
-  "approved",
-  "rejected",
-  "pending",
-]);
-export type DecisionStatus = z.infer<typeof DecisionStatusSchema>;
-
-export const ArtifactSchema = z.object({
-  type: z.string(),
-  label: z.string(),
-  url: z.string().optional(),
-});
-export type Artifact = z.infer<typeof ArtifactSchema>;
 
 export const LedgerEventSchema = z.object({
   id: z.string(),
@@ -37,37 +19,38 @@ export const LedgerEventSchema = z.object({
   role: EventRoleSchema.optional(),
   summary: z.string(),
   payload: z.unknown().optional(),
-  artifacts: z.array(ArtifactSchema).optional(),
-  parentId: z.string().optional(),
-  needsDecision: z.boolean().optional(),
-  decision: DecisionStatusSchema.optional(),
 });
 export type LedgerEvent = z.infer<typeof LedgerEventSchema>;
 
-export function parseEvent(raw: unknown): LedgerEvent {
-  return LedgerEventSchema.parse(raw);
-}
+export const payloadText = (payload: unknown): string => {
+  if (typeof payload !== "object" || payload === null || !("text" in payload)) return "";
+  const t = (payload as { text?: unknown }).text;
+  return typeof t === "string" ? t : "";
+};
 
-export function parseDayJsonl(text: string): LedgerEvent[] {
+export const parseDayJsonl = (text: string): LedgerEvent[] => {
   const events: LedgerEvent[] = [];
   for (const line of text.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
-      events.push(parseEvent(JSON.parse(trimmed)));
+      const parsed = LedgerEventSchema.safeParse(JSON.parse(trimmed));
+      if (parsed.success) events.push(parsed.data);
     } catch {
     }
   }
   return events;
-}
+};
 
-/** Calendar day label in America/Los_Angeles as YYYY-MM-DD. */
-export function dayInPT(isoOrDate: string | Date = new Date()): string {
+export const dayInTz = (
+  isoOrDate: string | Date = new Date(),
+  timeZone: string = DEFAULT_TIMEZONE,
+): string => {
   const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Los_Angeles",
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(d);
-}
+};

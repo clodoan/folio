@@ -1,8 +1,14 @@
 import type { EventRole, LedgerEvent } from "../schema";
-import { dayInPT } from "../schema";
-import { capPayload, type CursorAdapterDefaults } from "./cursorTranscript";
+import { DEFAULT_TIMEZONE, dayInTz } from "../schema";
+import {
+  asRecord,
+  capPayload,
+  previewText,
+  sessionIdFromDefaults,
+  type AdapterDefaults,
+} from "./shared";
 
-export type GrokAdapterDefaults = CursorAdapterDefaults & {
+export type GrokAdapterDefaults = AdapterDefaults & {
   fallbackStartIso?: string;
   fallbackEndIso?: string;
 };
@@ -41,27 +47,6 @@ const KEEP_EVENTS = new Set([
 ]);
 
 const CHUNK_UPDATES = new Set(["user_message_chunk", "agent_message_chunk"]);
-
-const asRecord = (raw: unknown): Record<string, unknown> | null => {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
-  return raw as Record<string, unknown>;
-};
-
-const previewText = (text: string, n = 120): string => {
-  const t = text.replace(/\s+/g, " ").trim();
-  if (t.length <= n) return t;
-  return `${t.slice(0, n - 1)}…`;
-};
-
-const sessionFromPath = (sourcePath?: string): string => {
-  if (!sourcePath) return "unknown";
-  const parts = sourcePath.replace(/\\/g, "/").split("/");
-  const parent = parts[parts.length - 2] ?? "";
-  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (uuid.test(parent)) return parent;
-  const file = parts[parts.length - 1] ?? "unknown";
-  return file.replace(/\.(jsonl|json)$/i, "") || "unknown";
-};
 
 export const tsToIso = (value: unknown, fallback: string): string => {
   if (typeof value === "string" && value.trim()) {
@@ -153,20 +138,23 @@ const parseRecords = (text: string): unknown[] => {
   return out;
 };
 
-const eventOf = (opts: {
-  id: string;
-  ts: string;
-  provider: string;
-  agent: string;
-  sessionId: string;
-  kind: LedgerEvent["kind"];
-  role?: EventRole;
-  summary: string;
-  payload?: unknown;
-}): LedgerEvent => ({
+const eventOf = (
+  opts: {
+    id: string;
+    ts: string;
+    provider: string;
+    agent: string;
+    sessionId: string;
+    kind: LedgerEvent["kind"];
+    role?: EventRole;
+    summary: string;
+    payload?: unknown;
+  },
+  timeZone: string,
+): LedgerEvent => ({
   id: opts.id.slice(0, 80),
   ts: opts.ts,
-  day: dayInPT(opts.ts),
+  day: dayInTz(opts.ts, timeZone),
   provider: opts.provider,
   agent: opts.agent,
   sessionId: opts.sessionId,
@@ -181,22 +169,26 @@ const flushChunk = (
   events: LedgerEvent[],
   provider: string,
   agent: string,
+  timeZone: string,
 ): void => {
   if (!pending) return;
   const text = pending.texts.join("").trim();
   if (!text) return;
   events.push(
-    eventOf({
-      id: stableId([pending.sessionId, pending.ts, pending.role, String(pending.idx)]),
-      ts: pending.ts,
-      provider,
-      agent,
-      sessionId: pending.sessionId,
-      kind: "message",
-      role: pending.role,
-      summary: text,
-      payload: { text },
-    }),
+    eventOf(
+      {
+        id: stableId([pending.sessionId, pending.ts, pending.role, String(pending.idx)]),
+        ts: pending.ts,
+        provider,
+        agent,
+        sessionId: pending.sessionId,
+        kind: "message",
+        role: pending.role,
+        summary: text,
+        payload: { text },
+      },
+      timeZone,
+    ),
   );
 };
 
@@ -206,6 +198,7 @@ const updatesToEvents = (
   agentDefault: string,
   sessionDefault: string,
   nowIso: string,
+  timeZone: string,
 ): LedgerEvent[] => {
   const events: LedgerEvent[] = [];
   let pending: { role: EventRole; texts: string[]; ts: string; sessionId: string; idx: number } | null =
@@ -234,12 +227,12 @@ const updatesToEvents = (
         pending.ts = ts;
         continue;
       }
-      flushChunk(pending, events, provider, agent);
+      flushChunk(pending, events, provider, agent, timeZone);
       pending = { role, texts: [text], ts, sessionId, idx };
       continue;
     }
 
-    flushChunk(pending, events, provider, agent);
+    flushChunk(pending, events, provider, agent, timeZone);
     pending = null;
 
     if (kind === "tool_call") {
@@ -249,21 +242,24 @@ const updatesToEvents = (
         "tool";
       const toolId = typeof update.toolCallId === "string" ? update.toolCallId : String(idx);
       events.push(
-        eventOf({
-          id: stableId([sessionId, toolId, "tool"]),
-          ts,
-          provider,
-          agent,
-          sessionId,
-          kind: "tool",
-          summary: `Tool: ${name}`,
-          payload: { name, id: toolId, input: update.rawInput },
-        }),
+        eventOf(
+          {
+            id: stableId([sessionId, toolId, "tool"]),
+            ts,
+            provider,
+            agent,
+            sessionId,
+            kind: "tool",
+            summary: `Tool: ${name}`,
+            payload: { name, id: toolId, input: update.rawInput },
+          },
+          timeZone,
+        ),
       );
       continue;
     }
   }
-  flushChunk(pending, events, provider, agentDefault);
+  flushChunk(pending, events, provider, agentDefault, timeZone);
   return events;
 };
 
@@ -273,6 +269,7 @@ const eventsToEvents = (
   agentDefault: string,
   sessionDefault: string,
   nowIso: string,
+  timeZone: string,
 ): LedgerEvent[] => {
   const events: LedgerEvent[] = [];
   let idx = 0;
@@ -292,30 +289,36 @@ const eventsToEvents = (
       const name = (typeof raw.tool_name === "string" && raw.tool_name) || "tool";
       const toolId = typeof raw.tool_call_id === "string" ? raw.tool_call_id : String(idx);
       events.push(
-        eventOf({
-          id: stableId([sessionId, toolId, raw.type]),
-          ts,
-          provider,
-          agent,
-          sessionId,
-          kind: "tool",
-          summary: `Tool: ${name}`,
-          payload: { name, type: raw.type, outcome: raw.outcome },
-        }),
+        eventOf(
+          {
+            id: stableId([sessionId, toolId, raw.type]),
+            ts,
+            provider,
+            agent,
+            sessionId,
+            kind: "tool",
+            summary: `Tool: ${name}`,
+            payload: { name, type: raw.type, outcome: raw.outcome },
+          },
+          timeZone,
+        ),
       );
       continue;
     }
     events.push(
-      eventOf({
-        id: stableId([sessionId, ts, raw.type, String(idx)]),
-        ts,
-        provider,
-        agent,
-        sessionId,
-        kind: "message",
-        role: "system",
-        summary: raw.type.replace(/_/g, " "),
-      }),
+      eventOf(
+        {
+          id: stableId([sessionId, ts, raw.type, String(idx)]),
+          ts,
+          provider,
+          agent,
+          sessionId,
+          kind: "message",
+          role: "system",
+          summary: raw.type.replace(/_/g, " "),
+        },
+        timeZone,
+      ),
     );
   }
   return events;
@@ -328,6 +331,7 @@ const chatToEvents = (
   sessionDefault: string,
   startIso: string,
   endIso: string | undefined,
+  timeZone: string,
 ): LedgerEvent[] => {
   const events: LedgerEvent[] = [];
   let idx = 0;
@@ -347,16 +351,19 @@ const chatToEvents = (
     if (type === "tool_result" || type === "tool_use" || type === "tool_call" || type === "tool") {
       const name = (typeof raw.name === "string" && raw.name) || "tool";
       events.push(
-        eventOf({
-          id: stableId([sessionId, ts, "tool", name, String(idx)]),
-          ts,
-          provider,
-          agent: agentDefault,
-          sessionId,
-          kind: "tool",
-          summary: `Tool: ${name}`,
-          payload: { name, input: raw.input, output: raw.output ?? raw.content },
-        }),
+        eventOf(
+          {
+            id: stableId([sessionId, ts, "tool", name, String(idx)]),
+            ts,
+            provider,
+            agent: agentDefault,
+            sessionId,
+            kind: "tool",
+            summary: `Tool: ${name}`,
+            payload: { name, input: raw.input, output: raw.output ?? raw.content },
+          },
+          timeZone,
+        ),
       );
       continue;
     }
@@ -365,31 +372,37 @@ const chatToEvents = (
     if (!text) continue;
     const role: EventRole = type === "user" ? "user" : "agent";
     events.push(
-      eventOf({
-        id: stableId([sessionId, ts, role, String(idx)]),
-        ts,
-        provider,
-        agent: agentDefault,
-        sessionId,
-        kind: "message",
-        role,
-        summary: text,
-        payload: { text },
-      }),
+      eventOf(
+        {
+          id: stableId([sessionId, ts, role, String(idx)]),
+          ts,
+          provider,
+          agent: agentDefault,
+          sessionId,
+          kind: "message",
+          role,
+          summary: text,
+          payload: { text },
+        },
+        timeZone,
+      ),
     );
   }
   if (events.length && endIso && Date.parse(endIso) > Date.parse(lastTs)) {
     events.push(
-      eventOf({
-        id: stableId([sessionDefault, endIso, "span"]),
-        ts: endIso,
-        provider,
-        agent: agentDefault,
-        sessionId: sessionDefault,
-        kind: "message",
-        role: "system",
-        summary: "session ended",
-      }),
+      eventOf(
+        {
+          id: stableId([sessionDefault, endIso, "span"]),
+          ts: endIso,
+          provider,
+          agent: agentDefault,
+          sessionId: sessionDefault,
+          kind: "message",
+          role: "system",
+          summary: "session ended",
+        },
+        timeZone,
+      ),
     );
   }
   return events;
@@ -400,6 +413,7 @@ const summaryToEvents = (
   provider: string,
   agentDefault: string,
   sessionDefault: string,
+  timeZone: string,
 ): LedgerEvent[] => {
   const start = tsToIso(raw.created_at, "");
   const end = tsToIso(raw.last_active_at ?? raw.updated_at, start);
@@ -415,44 +429,53 @@ const summaryToEvents = (
   const events: LedgerEvent[] = [];
   if (title) {
     events.push(
-      eventOf({
-        id: stableId([sessionDefault, start, "title"]),
-        ts: start,
-        provider,
-        agent,
-        sessionId: sessionDefault,
-        kind: "message",
-        role: "user",
-        summary: title,
-        payload: { text: title },
-      }),
+      eventOf(
+        {
+          id: stableId([sessionDefault, start, "title"]),
+          ts: start,
+          provider,
+          agent,
+          sessionId: sessionDefault,
+          kind: "message",
+          role: "user",
+          summary: title,
+          payload: { text: title },
+        },
+        timeZone,
+      ),
     );
   } else {
     events.push(
-      eventOf({
-        id: stableId([sessionDefault, start, "start"]),
-        ts: start,
-        provider,
-        agent,
-        sessionId: sessionDefault,
-        kind: "message",
-        role: "system",
-        summary: "session started",
-      }),
+      eventOf(
+        {
+          id: stableId([sessionDefault, start, "start"]),
+          ts: start,
+          provider,
+          agent,
+          sessionId: sessionDefault,
+          kind: "message",
+          role: "system",
+          summary: "session started",
+        },
+        timeZone,
+      ),
     );
   }
   if (end && end !== start) {
     events.push(
-      eventOf({
-        id: stableId([sessionDefault, end, "span"]),
-        ts: end,
-        provider,
-        agent,
-        sessionId: sessionDefault,
-        kind: "message",
-        role: "system",
-        summary: "session ended",
-      }),
+      eventOf(
+        {
+          id: stableId([sessionDefault, end, "span"]),
+          ts: end,
+          provider,
+          agent,
+          sessionId: sessionDefault,
+          kind: "message",
+          role: "system",
+          summary: "session ended",
+        },
+        timeZone,
+      ),
     );
   }
   return events;
@@ -464,7 +487,8 @@ export const grokTranscriptToEvents = (
 ): LedgerEvent[] => {
   const provider = defaults?.provider ?? "grok";
   const agentDefault = defaults?.agent ?? "grok";
-  const sessionDefault = defaults?.sessionId ?? sessionFromPath(defaults?.sourcePath);
+  const sessionDefault = sessionIdFromDefaults(defaults);
+  const timeZone = defaults?.timeZone ?? DEFAULT_TIMEZONE;
   const nowIso = defaults?.fallbackStartIso ?? new Date().toISOString();
   const records = parseRecords(text);
   if (!records.length) return [];
@@ -472,13 +496,13 @@ export const grokTranscriptToEvents = (
   const first = records[0];
   if (records.length === 1 && looksLikeGrokSummary(first)) {
     const raw = asRecord(first);
-    return raw ? summaryToEvents(raw, provider, agentDefault, sessionDefault) : [];
+    return raw ? summaryToEvents(raw, provider, agentDefault, sessionDefault, timeZone) : [];
   }
   if (looksLikeGrokUpdate(first)) {
-    return updatesToEvents(records, provider, agentDefault, sessionDefault, nowIso);
+    return updatesToEvents(records, provider, agentDefault, sessionDefault, nowIso, timeZone);
   }
   if (looksLikeGrokEvent(first) && asRecord(first)?.type !== "user" && asRecord(first)?.type !== "assistant") {
-    return eventsToEvents(records, provider, agentDefault, sessionDefault, nowIso);
+    return eventsToEvents(records, provider, agentDefault, sessionDefault, nowIso, timeZone);
   }
   return chatToEvents(
     records,
@@ -487,5 +511,6 @@ export const grokTranscriptToEvents = (
     sessionDefault,
     defaults?.fallbackStartIso ?? nowIso,
     defaults?.fallbackEndIso,
+    timeZone,
   );
 };

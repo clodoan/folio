@@ -139,11 +139,6 @@ export function pageToPng(page, pxW = 1748, pxH = 2480) {
       strokeStamp(px, pxW, pxH, s.pts, s.widths, s.widthMm, sx, sy, h, ink);
     }
   }
-  const pencil = hexRgb(page.pencilColor);
-  for (const s of page.pencil || []) {
-    const pts = [s.a, s.b];
-    strokeStamp(px, pxW, pxH, pts, null, page.pencilWidth, sx, sy, h, pencil);
-  }
   const raw = Buffer.alloc((pxW * 4 + 1) * pxH);
   for (let y = 0; y < pxH; y++) {
     raw[y * (pxW * 4 + 1)] = 0;

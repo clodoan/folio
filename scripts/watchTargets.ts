@@ -11,8 +11,8 @@ import {
   type TranscriptFormat,
 } from "../src/agents.ts";
 import type { GrokAdapterDefaults } from "../src/adapters/grokTui.ts";
-import { extraWatchFromConfig } from "./folio-config.ts";
-import { INBOX_DIR, ROOT, WATCH_CONFIG } from "./paths.ts";
+import { extraWatchFromConfig, loadFolioConfig } from "./folio-config.ts";
+import { INBOX_DIR } from "./paths.ts";
 
 export type WatchSpec = {
   root: string;
@@ -87,32 +87,21 @@ export const isCursorTranscriptFile = (absPath: string): boolean => {
 };
 
 const acceptForKind = (kind: AgentKind): ((absPath: string) => boolean) => {
-  if (kind.pick === "grok-session") return isGrokSessionFile;
-  if (kind.pick === "cursor-transcript") return isCursorTranscriptFile;
-  return (abs) => abs.endsWith(".jsonl") && !isSecretPath(abs);
+  switch (kind.pick) {
+    case "grok-session":
+      return isGrokSessionFile;
+    case "cursor-transcript":
+      return isCursorTranscriptFile;
+    case "jsonl":
+      return (abs) => abs.endsWith(".jsonl") && !isSecretPath(abs);
+    default: {
+      const _never: never = kind.pick;
+      return _never;
+    }
+  }
 };
 
-export const extraWatchRoots = (): string[] => {
-  const raw = `${process.env.LEDGER_WATCH ?? ""},${process.env.FOLIO_WATCH ?? ""}`;
-  const fromEnv = raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((p) => resolve(ROOT, p));
-  const fromFile: string[] = [];
-  try {
-    if (existsSync(WATCH_CONFIG)) {
-      const parsed = JSON.parse(readFileSync(WATCH_CONFIG, "utf8")) as { paths?: unknown };
-      if (Array.isArray(parsed.paths)) {
-        for (const p of parsed.paths) {
-          if (typeof p === "string" && p.trim()) fromFile.push(resolve(ROOT, p));
-        }
-      }
-    }
-  } catch {
-  }
-  return [...new Set([...fromEnv, ...fromFile, ...extraWatchFromConfig()])];
-};
+export const extraWatchRoots = (): string[] => [...new Set(extraWatchFromConfig())];
 
 const grokSpanFromSibling = (absPath: string): Pick<GrokAdapterDefaults, "fallbackStartIso" | "fallbackEndIso"> => {
   const summaryPath = join(dirname(absPath), "summary.json");
@@ -147,6 +136,7 @@ export const ingestOptionsFor = (absPath: string): IngestFileOpts => {
     agent,
     sessionId: sessionIdFromPath(absPath),
     sourcePath: absPath,
+    timeZone: loadFolioConfig().timezone,
     ...span,
   };
   return { format, defaults };
