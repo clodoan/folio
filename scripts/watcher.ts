@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { watch } from "chokidar";
-import { ingestFile, loadIngestState } from "./ingest.ts";
+import { ingestFile, loadIngestState, withIngestLock } from "./ingest.ts";
 import { INBOX_DIR } from "./paths.ts";
 import { ingestOptionsFor, resolveWatchSpecs, specForPath, type WatchSpec } from "./watchTargets.ts";
 
@@ -15,7 +15,6 @@ export type WatcherHandle = {
 export const startWatcher = (onIngest?: () => void): WatcherHandle => {
   mkdirSync(INBOX_DIR, { recursive: true });
   const allow = resolveWatchSpecs();
-  const state = loadIngestState();
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
   const watcher = watch(
@@ -39,7 +38,9 @@ export const startWatcher = (onIngest?: () => void): WatcherHandle => {
       setTimeout(() => {
         timers.delete(abs);
         try {
-          const result = ingestFile(abs, state, ingestOptionsFor(abs));
+          const result = withIngestLock(() =>
+            ingestFile(abs, loadIngestState(), ingestOptionsFor(abs)),
+          );
           if (!result.skipped && (result.events ?? 0) > 0) onIngest?.();
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);

@@ -1,6 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { DEFAULT_TIMEZONE } from "../src/schema.ts";
+
+export { DEFAULT_TIMEZONE };
 
 export type FolioConfig = {
   name: string;
@@ -10,7 +13,6 @@ export type FolioConfig = {
 
 export const FOLIO_HOME = join(homedir(), ".folio");
 export const FOLIO_CONFIG_PATH = join(FOLIO_HOME, "config.json");
-export const DEFAULT_TIMEZONE = "America/Los_Angeles";
 
 export function defaultName(): string {
   const env = process.env.FOLIO_NAME?.trim();

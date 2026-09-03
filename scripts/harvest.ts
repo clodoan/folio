@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { ingestFile, loadIngestState } from "./ingest.ts";
+import { ingestFile, loadIngestState, withIngestLock } from "./ingest.ts";
 import { ingestOptionsFor, resolveWatchSpecs, specForPath, type WatchSpec } from "./watchTargets.ts";
 
 const collectAccepted = (dir: string, spec: WatchSpec, out: string[]): void => {
@@ -33,17 +33,18 @@ export const harvestFiles = (): string[] => {
   return out;
 };
 
-export const harvestOnce = (): number => {
-  const state = loadIngestState();
-  let added = 0;
-  for (const abs of harvestFiles()) {
-    try {
-      const result = ingestFile(abs, state, ingestOptionsFor(abs));
-      added += result.events ?? 0;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`harvest error ${abs}: ${msg}`);
+export const harvestOnce = (): number =>
+  withIngestLock(() => {
+    const state = loadIngestState();
+    let added = 0;
+    for (const abs of harvestFiles()) {
+      try {
+        const result = ingestFile(abs, state, ingestOptionsFor(abs));
+        added += result.events ?? 0;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`harvest error ${abs}: ${msg}`);
+      }
     }
-  }
-  return added;
-};
+    return added;
+  });

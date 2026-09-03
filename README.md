@@ -18,7 +18,7 @@ npm run folio:setup
 npm run folio:now
 ```
 
-Setup writes `~/.folio/config.json` and loads a harvest watcher plus a dusk check every evening from 5:30 to 7:00 in the timezone in that file. `folio:now` harvests, writes today's letter, and opens it in Preview when there is something to say.
+Setup writes `~/.folio/config.json` and loads a harvest watcher plus a dusk check every evening from 5:30 to 7:00 in the timezone in that file. LaunchAgent fire times follow this Mac's clock. The letter window and the day key use the timezone in config. `folio:now` harvests, writes today's letter, opens it in Preview when there is something to say, and marks that day delivered.
 
 ## Use it with your agents
 
@@ -56,6 +56,6 @@ That unloads and removes the LaunchAgents. Delete `~/.folio` and `~/Documents/Fo
 
 ## Privacy
 
-Everything stays on the machine. Harvest and watch share one allowlist. Day JSONL in `data/days` is local scratch and is gitignored.
+Everything stays on the machine. Harvest and watch share one allowlist. Day JSONL in `~/.folio/days` is local scratch. Extra watch roots come from `watch` in config.
 
 MIT.

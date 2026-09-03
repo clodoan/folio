@@ -7,12 +7,13 @@ import {
   readFileSync,
   readSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, extname } from "node:path";
 import type { LedgerEvent } from "../src/schema.ts";
 import { parseIngestText, type IngestParseOpts } from "../src/ingestParse.ts";
-import { DATA_DAYS, INGEST_STATE } from "./paths.ts";
+import { DATA_DAYS, INGEST_LOCK, INGEST_STATE, ensureFolioData } from "./paths.ts";
 import { isSecretPath } from "./watchTargets.ts";
 
 export type FileCursor = {
@@ -50,6 +51,42 @@ export function saveIngestState(state: IngestState): void {
   mkdirSync(dirname(INGEST_STATE), { recursive: true });
   writeFileSync(INGEST_STATE, JSON.stringify(state, null, 2) + "\n", "utf8");
 }
+
+const errCode = (err: unknown): string =>
+  err && typeof err === "object" && "code" in err ? String((err as { code: unknown }).code) : "";
+
+const dropStaleLock = (): void => {
+  try {
+    const st = statSync(INGEST_LOCK);
+    if (Date.now() - st.mtimeMs > 30_000) unlinkSync(INGEST_LOCK);
+  } catch {
+  }
+};
+
+export const withIngestLock = <T>(fn: () => T): T => {
+  ensureFolioData();
+  mkdirSync(dirname(INGEST_LOCK), { recursive: true });
+  const started = Date.now();
+  while (true) {
+    try {
+      const fd = openSync(INGEST_LOCK, "wx");
+      try {
+        return fn();
+      } finally {
+        closeSync(fd);
+        try {
+          unlinkSync(INGEST_LOCK);
+        } catch {
+        }
+      }
+    } catch (err) {
+      if (errCode(err) !== "EEXIST") throw err;
+      if (Date.now() - started > 8000) throw err;
+      dropStaleLock();
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
+  }
+};
 
 export function isIngestiblePath(path: string): boolean {
   const ext = extname(path).toLowerCase();

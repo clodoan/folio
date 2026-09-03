@@ -1,5 +1,5 @@
 import type { LedgerEvent } from "./schema";
-import { LedgerEventSchema, parseEvent } from "./schema";
+import { LedgerEventSchema } from "./schema";
 import { cursorTranscriptToEvents, looksLikeClaudeOrCursorLine } from "./adapters/cursorTranscript";
 import {
   grokTranscriptToEvents,
@@ -112,12 +112,6 @@ export const parseIngestText = (
   for (const raw of recordsFromText(text)) {
     const parsed = LedgerEventSchema.safeParse(raw);
     if (parsed.success) events.push(parsed.data);
-    else {
-      try {
-        events.push(parseEvent(raw));
-      } catch {
-      }
-    }
   }
   return { mode: "ledger", events };
 };

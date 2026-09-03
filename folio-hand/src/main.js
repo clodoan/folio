@@ -9,7 +9,7 @@ const meta = document.getElementById("meta");
 
 function render() {
   const day = dayEl.value || SAMPLE_LETTER.day;
-  const page = composePage(null, { ...SAMPLE_LETTER, day }, day);
+  const page = composePage({ ...SAMPLE_LETTER, day }, day);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawPage(ctx, page, canvas.width, canvas.height);
   meta.textContent = `seed ${page.seed}  ${HAND.id}  shapify  cap ${HAND.capMm}mm`;
