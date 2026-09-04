@@ -49,7 +49,9 @@ function marksOf(letter, n) {
 }
 
 export function pickGlyph(letter, n) {
-  const g = GLYPHS[letter];
+  // The hand knows few capitals. A missing capital writes as its
+  // lowercase shape instead of vanishing from the word.
+  const g = GLYPHS[letter] ?? GLYPHS[String(letter).toLowerCase()];
   if (!g) return null;
   const opts = g.options;
   const idx = ((n % opts.length) + opts.length) % opts.length;
