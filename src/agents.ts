@@ -13,14 +13,6 @@ export type AgentKind = {
 
 export const AGENT_KINDS: readonly AgentKind[] = [
   {
-    id: "cursor",
-    label: "Cursor",
-    homeDirs: [".cursor/projects"],
-    format: "transcript",
-    pick: "cursor-transcript",
-    pathNeedles: ["/agentstores/", "cursor-agent-worker", "cursor-cloud", "agent-transcripts"],
-  },
-  {
     id: "grok",
     label: "Grok",
     homeDirs: [".grok/sessions"],
@@ -35,6 +27,14 @@ export const AGENT_KINDS: readonly AgentKind[] = [
     format: "transcript",
     pick: "jsonl",
     pathNeedles: ["claude-code"],
+  },
+  {
+    id: "cursor",
+    label: "Cursor",
+    homeDirs: [".cursor/projects"],
+    format: "transcript",
+    pick: "cursor-transcript",
+    pathNeedles: ["/agentstores/", "cursor-agent-worker", "cursor-cloud", "agent-transcripts"],
   },
   {
     id: "codex",

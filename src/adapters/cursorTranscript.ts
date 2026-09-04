@@ -147,6 +147,8 @@ export function cursorTranscriptToEvents(
     const raw = asRecord(rawUnknown);
     if (!raw) continue;
     if (typeof raw.type === "string" && SKIP_TYPES.has(raw.type)) continue;
+    // Claude Code marks local-command chrome and caveats with isMeta.
+    if (raw.isMeta === true) continue;
 
     const sessionId =
       (typeof raw.sessionId === "string" && raw.sessionId) ||

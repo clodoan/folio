@@ -1,0 +1,3 @@
+{"type":"system","content":"You are Grok."}
+{"type":"user","content":[{"type":"text","text":"check the watch on the evening page"}]}
+{"type":"assistant","content":"The watch holds."}

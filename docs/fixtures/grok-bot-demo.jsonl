@@ -1,0 +1,8 @@
+{"type":"user","session_id":"demo-dawn","content":[{"type":"text","text":"fix the letter export before dusk so the page never clips"}]}
+{"type":"assistant","session_id":"demo-dawn","content":"The export holds the margin now."}
+{"type":"user","session_id":"demo-noon","content":[{"type":"text","text":"update the watch so the harvest lands in one clean file"}]}
+{"type":"assistant","session_id":"demo-noon","content":"The watcher reads every session home."}
+{"type":"user","session_id":"demo-afternoon","content":[{"type":"text","text":"build the timeline for the evening page and keep it quiet"}]}
+{"type":"assistant","session_id":"demo-afternoon","content":"Quiet days stay quiet."}
+{"type":"user","session_id":"demo-dusk","content":[{"type":"text","text":"sync the config with the machine timezone and write it down"}]}
+{"type":"assistant","session_id":"demo-dusk","content":"The clock follows this machine."}

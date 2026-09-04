@@ -8,8 +8,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { composePage, PAPER } from "../folio-hand/src/page.js";
 import { AGENT_KINDS } from "../src/agents.ts";
-import { composeLetter } from "../src/letter.ts";
+import { breathLines, composeLetter, stanzaLines } from "../src/letter.ts";
 import type { LedgerEvent } from "../src/schema.ts";
 import { dayInTz } from "../src/schema.ts";
 import { inEveningWindow } from "./dusk.ts";
@@ -73,12 +74,12 @@ test("letter is silent when topics cannot be extracted", () => {
   assert.match(withTopic.opening, /letter/);
 });
 
-test("agent registry is the list harvest probes", () => {
+test("agent registry is the list harvest probes, grok first", () => {
   const ids = AGENT_KINDS.map((k) => k.id);
   assert.deepEqual(ids, [
-    "cursor",
     "grok",
     "claude",
+    "cursor",
     "codex",
     "gemini",
     "opencode",
@@ -144,12 +145,77 @@ test("harvest and watcher both dispatch through specForPath", () => {
   assert.equal(/allow\.find\(\(s\) => s\.accept\(abs\)\)/.test(watcher), false);
 });
 
-test("now and dusk share the delivered flag", () => {
+test("now and dusk share the delivered flag and purge after it", () => {
   const now = readFileSync(join(root, "scripts/folio-now.ts"), "utf8");
   const dusk = readFileSync(join(root, "scripts/dusk.ts"), "utf8");
   assert.match(now, /markDelivered\(out\.day\)/);
   assert.match(dusk, /markDelivered\(day\)/);
+  assert.match(now, /purgeDayScratch\(out\.day\)/);
+  assert.match(dusk, /purgeDayScratch\(day\)/);
   assert.equal(/weekday === 0/.test(dusk), false);
+});
+
+test("breathLines keeps short lines whole and splits long ones at a pause", () => {
+  assert.deepEqual(breathLines("the page holds the hour"), ["the page holds the hour"]);
+  const lines = breathLines("fix the letter export before dusk and keep the page from ever clipping");
+  assert.equal(lines.length, 2);
+  assert.match(lines[0], /,$/);
+  for (const line of lines) assert.equal(line.length <= 64, true, line);
+});
+
+test("a full day reads as a longer poem, bounded for one page", () => {
+  const sessions: [string, string][] = [
+    ["s1", "fix the letter export before dusk so nothing waits on the margin"],
+    ["s2", "update the watch so the harvest lands in one clean file"],
+    ["s3", "build the timeline for the evening page and keep it quiet"],
+    ["s4", "sync the config with the machine timezone and write it down"],
+    ["s5", "refactor the ingest so grok sessions land first class"],
+  ];
+  const events = sessions.map(([sessionId, text], i) =>
+    event({ id: `p${i}`, sessionId, summary: text }),
+  );
+  const letter = composeLetter("2026-09-03", events, { name: "Ada" });
+  assert.equal(letter.silent, false);
+  assert.equal(letter.stanzas.length >= 5, true);
+  const lines = stanzaLines(letter);
+  assert.equal(lines.length >= 7, true);
+  assert.equal(lines.length <= 12, true);
+  for (const line of lines) {
+    assert.equal(line.length <= 64, true, line);
+    assert.equal(line, line.toLowerCase(), line);
+  }
+});
+
+test("a long poem still writes one A5 page without clipping", () => {
+  const sessions: [string, string][] = [
+    ["s1", "fix the letter export before dusk so nothing waits on the margin"],
+    ["s2", "update the watch so the harvest lands in one clean file"],
+    ["s3", "build the timeline for the evening page and keep it quiet"],
+    ["s4", "sync the config with the machine timezone and write it down"],
+    ["s5", "refactor the ingest so grok sessions land first class"],
+    ["s6", "scaffold the fixtures so a stranger sees a letter tonight"],
+  ];
+  const events = sessions.map(([sessionId, text], i) =>
+    event({ id: `q${i}`, sessionId, summary: text }),
+  );
+  const letter = composeLetter("2026-09-03", events, { name: "Ada" });
+  const page = composePage(
+    {
+      day: letter.day,
+      name: letter.name,
+      opening: letter.opening,
+      stanzas: stanzaLines(letter),
+      close: letter.close,
+      initials: letter.initials,
+    },
+    letter.day,
+  );
+  for (const r of page.inkRibbons) {
+    for (const [x, y] of r.polygon) {
+      assert.equal(x >= 2 && x <= PAPER.wMm - 2, true, `x ${x}`);
+      assert.equal(y >= 2 && y <= PAPER.hMm - 2, true, `y ${y}`);
+    }
+  }
 });
 
 test("folio off disables and removes the LaunchAgents", () => {

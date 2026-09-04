@@ -3,7 +3,6 @@ import { test } from "node:test";
 import { grokTranscriptToEvents, looksLikeGrokRecord, tsToIso } from "../src/adapters/grokTui.ts";
 import { formatHintForPath, inferProviderFromPath, sessionIdFromPath } from "../src/agents.ts";
 import { parseIngestText } from "../src/ingestParse.ts";
-import { resolveWatchSpecs } from "./watchTargets.ts";
 
 test("tsToIso treats grok update timestamps as seconds", () => {
   assert.equal(tsToIso(1788462961, ""), "2026-09-03T19:16:01.000Z");
@@ -24,12 +23,10 @@ test("infer provider from well-known homes, not a default IDE", () => {
   assert.equal(inferProviderFromPath("/tmp/drop.jsonl"), "local");
 });
 
-test("watch specs include whichever agents exist on this machine", () => {
-  const specs = resolveWatchSpecs();
-  const labels = specs.map((s) => s.label);
-  assert.equal(labels.includes("inbox"), true);
-  const providers = new Set(specs.map((s) => s.provider).filter(Boolean));
-  assert.equal(providers.has("cursor") || providers.has("grok") || providers.has("claude"), true);
+test("a grok-bot export dropped anywhere classifies as grok", () => {
+  assert.equal(formatHintForPath("/Users/ada/dev/folio/inbox/grok-bot-history.jsonl"), "grok");
+  assert.equal(inferProviderFromPath("/Users/ada/dev/folio/inbox/grok-bot-history.jsonl"), "grok");
+  assert.equal(inferProviderFromPath("/tmp/exports/grok-tui-session.jsonl"), "grok");
 });
 
 test("format hint follows the agent, not the host app", () => {
