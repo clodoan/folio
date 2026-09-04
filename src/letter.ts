@@ -43,16 +43,47 @@ const NOUNS: { re: RegExp; noun: string }[] = [
 const BANNED = /\b(great|exciting|happy to)\b/gi;
 const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu;
 
+// Machine noise that must never surface in a poem: wire ids, hashes,
+// URLs, and scheduler chrome. A product name near a URL survives; the
+// URL itself does not.
+const SYSTEM_REMINDER_BLOCK = /<system[-_ ]?reminder>[\s\S]*?<\/system[-_ ]?reminder>/gi;
+const URLISH = /\bhttps?:\/\/\S+|\b(?:www\.)?github\.com\/\S+/gi;
+// call-…, bc-…, sand-subagent-…, tool_call/toolCall ids. The digit
+// lookahead keeps ordinary hyphenations like "call-out" intact.
+const PREFIXED_ID = /\b(?:call|bc|sand-subagent|tool[_-]?call|toolcall|toolu)[-_](?=[\w-]*\d)[\w-]+/gi;
+const UUIDISH = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+// Hex runs need both a digit and a letter so years and short words survive.
+const HEXISH = /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,}\b/gi;
+const OPAQUE_TOKEN = /\b(?=[\w+/=-]*\d)[A-Za-z0-9+/=_-]{25,}\b/g;
+const CRONISH = /\(?\bevery(?:\s+\d+)?\s+(?:seconds?|minutes?|mins?|hours?|days?|weeks?|months?)\b\s*\)?/gi;
+const ROUTINE_PATH = /\S*[\\/](?:routines?|\.cursor)[\\/]\S*/gi;
+const SLASH_COMMAND = /(?:^|\s)\/[a-z][\w-]*(?=\s|$)/gi;
+
+// Texts that are machine chrome end to end: scheduler dumps and agent
+// prompt profiles. These never seed a topic, whatever else they mention.
+const MACHINE_CHROME = /^(?:scheduled task\b|you are (?:the|a|an)\b|system[-_ ]?reminder\b)/i;
+
 const stripUserChrome = (text: string): string =>
   text
     .replace(/<timestamp>[\s\S]*?<\/timestamp>/gi, " ")
+    .replace(SYSTEM_REMINDER_BLOCK, " ")
     .replace(/<\/?user_query>/gi, " ")
     .replace(/<user_info>[\s\S]*?<\/user_info>/gi, " ")
     .replace(/<[\s\S]*?>/g, " ")
+    .replace(URLISH, " ")
+    .replace(PREFIXED_ID, " ")
+    .replace(UUIDISH, " ")
+    .replace(HEXISH, " ")
+    .replace(OPAQUE_TOKEN, " ")
+    .replace(CRONISH, " ")
+    .replace(ROUTINE_PATH, " ")
+    .replace(SLASH_COMMAND, " ")
     .replace(EMOJI, " ")
     .replace(BANNED, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+const hasHumanWord = (s: string): boolean => /[a-z]{3,}/i.test(s);
 
 const quotedPhrase = (text: string): string | undefined => {
   const m = text.match(/[“"]([^”"]{3,80})[”"]/) || text.match(/'([^']{3,80})'/);
@@ -67,15 +98,21 @@ const userText = (ev: LedgerEvent | undefined): string => {
   return ev.summary ?? "";
 };
 
-const soften = (s: string): string => s.replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
+// Dropping a URL or id can leave a line hanging on its preposition.
+const soften = (s: string): string =>
+  s
+    .replace(/\s+/g, " ")
+    .replace(/[.,;:!?]+$/g, "")
+    .trim()
+    .replace(/\s+(?:at|in|on|to|from|via|see)$/i, "");
 
 export const ordinaryNoun = (text: string): string => {
   let t = stripUserChrome(text);
-  if (!t) return "";
+  if (!t || MACHINE_CHROME.test(t)) return "";
   const quoted = quotedPhrase(t);
   if (quoted) {
     const q = quoted.split(/\s+/).slice(0, 4).join(" ");
-    if (q) return soften(q);
+    if (q && hasHumanWord(q)) return soften(q);
   }
   t = (t.split(/[.!?]/)[0] ?? t).trim();
   for (const n of NOUNS) {
@@ -84,7 +121,8 @@ export const ordinaryNoun = (text: string): string => {
   t = t.replace(LEAD_VERBS, "").trim();
   t = t.replace(/^(a|an|the)\s+/i, (m) => m.toLowerCase());
   const words = t.split(/\s+/).filter(Boolean).slice(0, 4);
-  return soften(words.join(" "));
+  const out = soften(words.join(" "));
+  return hasHumanWord(out) ? out : "";
 };
 
 const firstSentence = (text: string, max = 110): string => {
@@ -109,7 +147,11 @@ const clipAtWord = (t: string, max: number): string => {
 
 // Split one sentence into one or two breath lines at a natural pause.
 export const breathLines = (sentence: string, max = BREATH_MAX): string[] => {
-  const t = sentence.replace(/\s+/g, " ").trim().replace(/[.;:!?]+$/g, "");
+  const t = sentence
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[.;:!?]+$/g, "")
+    .replace(/\s+(?:at|in|on|to|from|via|see)$/i, "");
   if (!t) return [];
   if (t.length <= max) return [t];
   const pauses = [...t.matchAll(/,\s+|;\s+|\s+(?=(?:and|then|so|but|while|to|into|with|for)\s)/g)];
