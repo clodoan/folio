@@ -1,0 +1,4 @@
+{
+  "name": "Folio",
+  "install": "npm ci && npm ci --prefix folio-hand"
+}
