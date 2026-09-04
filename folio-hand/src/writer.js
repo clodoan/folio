@@ -17,7 +17,7 @@ export const MOTOR = {
   tipMm: 0.25,
   slantDeg: 11,
   D_nominal: 1,
-  chaikin: 5,
+  chaikin: 4,
 };
 
 export const HAND = {
@@ -28,11 +28,14 @@ export const HAND = {
   capMm: MOTOR.capMm,
   xHeightMm: MOTOR.xHeightMm,
   D_nominal: MOTOR.D_nominal,
-  trackingMinCap: -0.02,
-  trackingMaxCap: 0.03,
-  wordSpaceCap: 0.42,
-  leadingCap: 1.55,
+  trackingMinCap: 0.08,
+  trackingMaxCap: 0.14,
+  letterTrackingCap: 0.12,
+  wordSpaceCap: 0.46,
+  leadingCap: 1.60,
   measureMm: 90,
+  ascenderGain: 1.10,
+  descenderGain: 1.16,
 };
 
 function fade(t) {
@@ -159,7 +162,9 @@ export function shapify(pts, widthAt) {
 }
 
 function unitToPage(p, origin, capMm, slant) {
-  const yu = p.y;
+  let yu = p.y;
+  if (yu < 0.55) yu = 0.55 - (0.55 - yu) * HAND.ascenderGain;
+  else if (yu > 1) yu = 1 + (yu - 1) * HAND.descenderGain;
   const y = origin.y + (1 - yu) * capMm;
   const x = origin.x + p.x * capMm + (1 - yu) * slant * capMm;
   return { x, y };
@@ -174,7 +179,7 @@ function halfWidth(pt, i, n, capMm, ox, oy, originY) {
   return ((MOTOR.tipMm * 0.52) * (0.985 + 0.03 * nse) * towardBase * taper);
 }
 
-function assembleWordPaths(letters, choices, rng) {
+function assembleWordPaths(letters, choices, rng, tracking = HAND.letterTrackingCap) {
   const picked = letters.map((ch, i) => {
     if (ch === " ") return null;
     const g = pickGlyph(ch, choices[i]);
@@ -203,7 +208,7 @@ function assembleWordPaths(letters, choices, rng) {
   for (let i = 0; i < letters.length; i++) {
     const g = adjusted[i];
     if (!g) {
-      xOff += 0.42;
+      xOff += HAND.wordSpaceCap;
       continue;
     }
     const x0 = xOff;
@@ -224,13 +229,14 @@ function assembleWordPaths(letters, choices, rng) {
     };
     walk(g.path, false);
     for (const m of g.marks) walk(m, true);
+    const nextLetter = i + 1 < letters.length && letters[i + 1] !== " ";
     glyphMeta.push({
       ch: letters[i],
       xUnit: x0,
       advance: g.advance,
       path: toPoints(g.path).map((p) => ({ x: p.x + xOff, y: p.y })),
     });
-    xOff += g.advance;
+    xOff += g.advance + (nextLetter ? tracking : 0);
   }
   if (current.length >= 2) subpaths.push(current);
   return { subpaths, glyphMeta, widthUnit: xOff };
@@ -249,7 +255,8 @@ export function writeWord(word, origin, ctx = {}, trackingEm = 0) {
     if (!n) return 0;
     return Math.floor(rng() * n);
   });
-  const { subpaths, glyphMeta, widthUnit } = assembleWordPaths(letters, choices, rng);
+  const tracking = ctx.trackingCap ?? (trackingEm || HAND.letterTrackingCap);
+  const { subpaths, glyphMeta, widthUnit } = assembleWordPaths(letters, choices, rng, tracking);
 
   const ox = (seed % 97) * 0.17;
   const oy = ((seed >>> 8) % 79) * 0.13;
@@ -290,7 +297,6 @@ export function writeWord(word, origin, ctx = {}, trackingEm = 0) {
     ],
   }));
 
-  void trackingEm;
   return {
     ribbons,
     strokes,

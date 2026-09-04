@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -b --noEmit",
-    "test": "tsx --test scripts/claims.test.ts scripts/grokTui.test.ts scripts/harvest.test.ts",
+    "test": "tsx --test scripts/claims.test.ts scripts/grokTui.test.ts scripts/harvest.test.ts scripts/hand.test.ts",
     "import-cursor": "tsx scripts/import-cursor.ts",
     "watch": "tsx scripts/watch.ts",
     "folio": "tsx scripts/folio.ts",

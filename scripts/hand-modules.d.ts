@@ -45,3 +45,33 @@ declare module "../folio-hand/src/renderPdf.js" {
 declare module "../folio-hand/src/renderPng.js" {
   export function pageToPng(page: unknown, pxW?: number, pxH?: number): Uint8Array;
 }
+
+declare module "../folio-hand/src/glyphs.js" {
+  export function pickGlyph(
+    letter: string,
+    n: number,
+  ): {
+    path: Array<number | { x: number; y: number }>;
+    advance: number;
+    index: number;
+  } | null;
+}
+
+declare module "../folio-hand/src/writer.js" {
+  export const HAND: {
+    id: string;
+    capMm: number;
+    letterTrackingCap: number;
+    trackingMinCap: number;
+    wordSpaceCap: number;
+    leadingCap: number;
+    ascenderGain: number;
+    descenderGain: number;
+  };
+  export function writeWord(
+    word: string,
+    origin: { x: number; y: number },
+    ctx?: Record<string, unknown>,
+    trackingEm?: number,
+  ): { widthMm: number; ribbons: { polygon: [number, number][] }[] };
+}
