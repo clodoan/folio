@@ -115,6 +115,29 @@ test("ids, urls, and schedules never leak into a poem beside real work", () => {
   }
 });
 
+test("a quoted schedule in prose never becomes the topic", () => {
+  const brief =
+    'Fix the poem builder. Reject "Scheduled task" and cron-ish "every N minutes" before a line can become a topic.';
+  const letter = composeLetter(
+    "2026-09-03",
+    [event({ id: "q1", sessionId: "brief", summary: brief, payload: { text: brief } })],
+    { name: "Ada" },
+  );
+  assert.equal(letter.silent, false);
+  assert.equal(/scheduled|cron/i.test(letter.opening), false, letter.opening);
+  for (const line of stanzaLines(letter)) {
+    assert.equal(/scheduled|cron/i.test(line), false, line);
+  }
+
+  const quotedWork = composeLetter(
+    "2026-09-03",
+    [event({ id: "q2", sessionId: "named", summary: 'polish the "evening page" before dusk' })],
+    { name: "Ada" },
+  );
+  assert.equal(quotedWork.silent, false);
+  assert.match(quotedWork.opening, /evening page/);
+});
+
 test("agent registry is the list harvest probes, grok first", () => {
   const ids = AGENT_KINDS.map((k) => k.id);
   assert.deepEqual(ids, [
