@@ -59,13 +59,15 @@ Put your name in config so the opening sentence uses it:
 }
 ```
 
+Grok Bot fleet chats on the agent computer live at `/home/box/agent-data/agent-transcripts`, not Mac Application Support. Add that path to `watch`, or run Folio where those files exist, and they get picked up.
+
 Letters land at `~/Documents/Folio/letters/YYYY-MM-DD.pdf` (and `.png`). The dusk notification is the opening sentence. On a stock Mac, Preview opens with the letter. Click-to-open needs `terminal-notifier`.
 
-If the day has no usable topics, Folio stays quiet. No ping.
+Machine chrome (UUIDs, scheduled-task lines, call ids, raw URLs) is stripped from topics. If nothing human remains, the day stays quiet. No ping.
 
 ## The hand
 
-Paths, not a font. A few key points per letter, join tags, Chaikin smoothing, a thin ribbon. Each night the same person writes a new page.
+Paths, not a font. Join tags, Chaikin smoothing, a thin ribbon. Each night the same person writes a new page.
 
 A non-silent day reads as one poem. More sessions mean more stanzas. The hand scales itself so the poem always fits one A5 page.
 
