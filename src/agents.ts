@@ -23,7 +23,7 @@ export const AGENT_KINDS: readonly AgentKind[] = [
   {
     id: "claude",
     label: "Claude",
-    homeDirs: [".claude/projects", ".claude/sessions"],
+    homeDirs: [".claude/projects"],
     format: "transcript",
     pick: "jsonl",
     pathNeedles: ["claude-code"],

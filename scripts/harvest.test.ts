@@ -60,17 +60,21 @@ test("harvest takes transcripts and leaves secrets and side logs", () => {
   assert.equal(files.some((f) => f.endsWith("updates.jsonl")), true);
   assert.equal(files.some((f) => f.endsWith("chat_history.jsonl")), true);
   assert.equal(files.some((f) => f.includes("rewind_points")), false);
+  assert.equal(files.some((f) => f.includes("prompt_history")), false);
+  assert.equal(files.some((f) => f.includes("feedback")), false);
   assert.equal(files.some((f) => f.endsWith("auth.json")), false);
   assert.equal(files.some((f) => f.endsWith("summary.json")), false);
 });
 
 test("claude code sessions land as ledger events", () => {
   const claude = readDayEvents("2026-09-03").filter((e) => e.provider === "claude");
-  const user = claude.find((e) => e.kind === "message" && e.role === "user");
+  const user = claude.find(
+    (e) => e.kind === "message" && e.role === "user" && /letter export/.test(e.summary),
+  );
   assert.equal(user?.sessionId, "f0dcbe1e-3a3e-4c47-9464-2fa1f9023c7b");
-  assert.match(user?.summary ?? "", /letter export/);
   assert.equal(claude.some((e) => e.kind === "tool"), true);
   assert.equal(claude.some((e) => /caveat/i.test(e.summary)), false);
+  assert.equal(claude.some((e) => e.agent === "claude-subagent"), true);
 });
 
 test("grok bot sessions land as ledger events", () => {
