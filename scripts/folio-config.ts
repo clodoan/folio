@@ -14,6 +14,18 @@ export type FolioConfig = {
 export const FOLIO_HOME = join(homedir(), ".folio");
 export const FOLIO_CONFIG_PATH = join(FOLIO_HOME, "config.json");
 
+export function systemTimezone(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz && tz.trim()) {
+      new Intl.DateTimeFormat("en-US", { timeZone: tz });
+      return tz.trim();
+    }
+  } catch {
+  }
+  return DEFAULT_TIMEZONE;
+}
+
 export function defaultName(): string {
   const env = process.env.FOLIO_NAME?.trim();
   if (env) return env;
@@ -25,7 +37,7 @@ export function defaultName(): string {
 export function loadFolioConfig(): FolioConfig {
   const fallback: FolioConfig = {
     name: defaultName(),
-    timezone: DEFAULT_TIMEZONE,
+    timezone: systemTimezone(),
     watch: [],
   };
   try {
@@ -49,7 +61,7 @@ export function writeFolioConfig(partial?: Partial<FolioConfig>): FolioConfig {
   const prev = loadFolioConfig();
   const next: FolioConfig = {
     name: partial?.name?.trim() || prev.name || defaultName(),
-    timezone: partial?.timezone?.trim() || prev.timezone || DEFAULT_TIMEZONE,
+    timezone: partial?.timezone?.trim() || prev.timezone || systemTimezone(),
     watch: partial?.watch ?? prev.watch,
   };
   mkdirSync(FOLIO_HOME, { recursive: true });
