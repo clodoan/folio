@@ -12,11 +12,19 @@ export const PAPER = {
 export const SAMPLE_LETTER = {
   day: "2026-09-02",
   dateLabel: "2 September",
-  name: "Claudio",
-  opening: "Today we worked with Claudio on the journal, the letter, and the evening page.",
+  name: "Ada",
+  opening: "Today we worked with Ada on the journal, the letter, and the evening page.",
   stanza: "The page holds the hour.",
+  stanzas: [
+    "the journal took the morning,",
+    "and gave it back in order.",
+    "the letter waited for dusk,",
+    "then said what the day had said.",
+    "the evening page held the hour,",
+    "and the ink dried in the margin.",
+  ],
   close: "We set the work down.",
-  initials: "Ca",
+  initials: "Aa",
 };
 
 function keepHand(text) {
@@ -41,8 +49,6 @@ export function composePage(letter = SAMPLE_LETTER, isoDate = letter.day) {
   const seed = pageSeed(isoDate);
   const rng = rngFromSeed(seed);
   const cap = HAND.capMm;
-  const wordSpace = HAND.wordSpaceCap * cap;
-  const leading = HAND.leadingCap * cap;
   const measure = HAND.measureMm;
 
   const inkStrokes = [];
@@ -63,12 +69,13 @@ export function composePage(letter = SAMPLE_LETTER, isoDate = letter.day) {
 
   function wrapLine(text, ctxCap, maxW) {
     const words = keepHand(text).split(/\s+/).filter(Boolean);
+    const space = HAND.wordSpaceCap * ctxCap;
     const lines = [];
     let cur = [];
     let w = 0;
     for (const word of words) {
       const ww = wordWidth(word, ctxCap);
-      const extra = cur.length ? wordSpace : 0;
+      const extra = cur.length ? space : 0;
       if (cur.length && w + extra + ww > maxW) {
         lines.push(cur);
         cur = [word];
@@ -82,8 +89,10 @@ export function composePage(letter = SAMPLE_LETTER, isoDate = letter.day) {
     return lines;
   }
 
-  function placeTextBlock(text, x0, y0, { fatigue, indent = 0, D = 1, cluster = 0 }) {
-    const lines = wrapLine(text, cap, measure);
+  function placeTextBlock(text, x0, y0, { fatigue, indent = 0, D = 1, cluster = 0, capMm = cap, measureMm = measure }) {
+    const blockSpace = HAND.wordSpaceCap * capMm;
+    const blockLead = HAND.leadingCap * capMm;
+    const lines = wrapLine(text, capMm, measureMm);
     let y = y0;
     let xCursor = x0;
     for (const words of lines) {
@@ -95,7 +104,7 @@ export function composePage(letter = SAMPLE_LETTER, isoDate = letter.day) {
       const lineX0 = x;
       for (let wi = 0; wi < words.length; wi++) {
         const word = words[wi];
-        const t = (x - lineX0) / Math.max(8, measure);
+        const t = (x - lineX0) / Math.max(8, measureMm);
         const wander = slope * (x - lineX0) + amp * Math.sin(t * Math.PI * 1.1 + phase);
         const yb = y + wander + (rng() * 2 - 1) * 0.16 * (1 + fatigue);
         const placed = writeWord(
@@ -105,10 +114,10 @@ export function composePage(letter = SAMPLE_LETTER, isoDate = letter.day) {
             pageSeed: seed,
             i: serial,
             fatigue,
-            capMm: cap,
+            capMm,
             D,
             slantDeg: HAND.slantDeg + (rng() * 2 - 1) * 1.4,
-            xOnLine: (x - x0) / measure,
+            xOnLine: (x - x0) / measureMm,
             cluster,
           },
         );
@@ -116,16 +125,16 @@ export function composePage(letter = SAMPLE_LETTER, isoDate = letter.day) {
         inkStrokes.push(...placed.strokes);
         inkRibbons.push(...placed.ribbons);
         glyphs.push(...placed.glyphs);
-        x = placed.xEnd + wordSpace * (1 + (rng() * 2 - 1) * (0.08 + fatigue * 0.14));
+        x = placed.xEnd + blockSpace * (1 + (rng() * 2 - 1) * (0.08 + fatigue * 0.14));
         xCursor = x;
       }
-      y -= leading * (1 + (rng() * 2 - 1) * 0.04) * (1 + fatigue * 0.04);
+      y -= blockLead * (1 + (rng() * 2 - 1) * 0.04) * (1 + fatigue * 0.04);
     }
     return { y, xEnd: xCursor, lineCount: lines.length };
   }
 
   const name = keepHand(letter.name);
-  const initials = String(letter.initials || "Ca").replace(/ /g, "").slice(0, 2);
+  const initials = String(letter.initials || "Aa").replace(/ /g, "").slice(0, 2);
   let opening = keepHand(letter.opening);
   if (name && initials && name.length > 2) {
     const leaked = new RegExp(`\\bwith\\s+${initials}\\b`);
@@ -165,32 +174,65 @@ export function composePage(letter = SAMPLE_LETTER, isoDate = letter.day) {
   }
 
   const left = 22;
-  const openY = PAPER.hMm - 58;
-  const rOpen = placeTextBlock(opening, left, openY, { fatigue: 0.06, cluster: 0 });
+  const openY = PAPER.hMm - 52;
+  const bottomMm = 24;
+  const bodyMeasure = PAPER.wMm - left - 22;
 
-  let y = rOpen.y - leading * 1.7;
+  // A longer poem still writes one A5 page: measure every block, then
+  // scale the body hand down just enough to fit above the signature.
+  const openGap = 0.6;
+  const stanzaGap = 0.15;
+  const closeGap = 0.7;
+  const sigRoom = 2.1;
+  const neededMm = (f) => {
+    const c = cap * f;
+    const lead = HAND.leadingCap * c;
+    let leads = wrapLine(opening, c, bodyMeasure).length + openGap;
+    for (const s of stanzaList) leads += wrapLine(s, c, bodyMeasure).length;
+    leads += stanzaGap * Math.max(0, stanzaList.length - 1);
+    leads += closeGap + wrapLine(close, c, bodyMeasure).length + sigRoom;
+    return leads * lead;
+  };
+  let fit = 1;
+  const budgetMm = openY - bottomMm;
+  while (fit > 0.62 && neededMm(fit) > budgetMm) fit -= 0.02;
+  const bodyCap = cap * fit;
+  const bodyLead = HAND.leadingCap * bodyCap;
+
+  const rOpen = placeTextBlock(opening, left, openY, {
+    fatigue: 0.06,
+    cluster: 0,
+    capMm: bodyCap,
+    measureMm: bodyMeasure,
+  });
+
+  let y = rOpen.y - bodyLead * openGap;
   for (let si = 0; si < stanzaList.length; si++) {
     const rStanza = placeTextBlock(stanzaList[si], left, y, {
-      fatigue: 0.22 + si * 0.06,
+      fatigue: 0.22 + si * 0.03,
       indent: 5,
       cluster: 1 + si,
+      capMm: bodyCap,
+      measureMm: bodyMeasure,
     });
-    y = rStanza.y - (si + 1 < stanzaList.length ? leading * 0.45 : 0);
+    y = rStanza.y - (si + 1 < stanzaList.length ? bodyLead * stanzaGap : 0);
   }
 
-  const rClose = placeTextBlock(close, left, y - leading * 1.75, {
+  const rClose = placeTextBlock(close, left, y - bodyLead * closeGap, {
     fatigue: 0.48,
     indent: 24,
     cluster: 2,
+    capMm: bodyCap,
+    measureMm: bodyMeasure,
   });
 
   const sigX = 78 + (rng() * 2 - 1) * 7;
-  const sigY = rClose.y - leading * 1.05 + (rng() * 2 - 1) * 2.2;
+  const sigY = Math.max(10, rClose.y - bodyLead * 1.05 + (rng() * 2 - 1) * 2.2);
   const sig = writeWord(initials, { x: sigX, y: sigY }, {
     pageSeed: seed,
     i: serial,
     fatigue: 0.12,
-    capMm: cap * 1.28,
+    capMm: Math.max(cap * 1.28 * fit, cap * 0.95),
     D: 1,
     slantDeg: HAND.slantDeg + 2.2,
     cluster: 3,

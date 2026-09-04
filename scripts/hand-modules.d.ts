@@ -6,6 +6,7 @@ declare module "../folio-hand/src/page.js" {
     name: string;
     opening: string;
     stanza: string;
+    stanzas: string[];
     close: string;
     initials: string;
   };

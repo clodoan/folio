@@ -3,7 +3,7 @@ import { payloadText } from "./schema";
 
 export type LetterStanza = {
   topic: string;
-  beat: string;
+  lines: string[];
 };
 
 export type FolioLetter = {
@@ -96,18 +96,47 @@ const firstSentence = (text: string, max = 110): string => {
   return (sp > 40 ? cut.slice(0, sp) : cut).trim();
 };
 
+// One poem line. Short enough for the A5 measure.
+export const BREATH_MAX = 56;
+
+const clipAtWord = (t: string, max: number): string => {
+  const s = soften(t);
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const sp = cut.lastIndexOf(" ");
+  return soften(sp > 12 ? cut.slice(0, sp) : cut);
+};
+
+// Split one sentence into one or two breath lines at a natural pause.
+export const breathLines = (sentence: string, max = BREATH_MAX): string[] => {
+  const t = sentence.replace(/\s+/g, " ").trim().replace(/[.;:!?]+$/g, "");
+  if (!t) return [];
+  if (t.length <= max) return [t];
+  const pauses = [...t.matchAll(/,\s+|;\s+|\s+(?=(?:and|then|so|but|while|to|into|with|for)\s)/g)];
+  const mid = t.length / 2;
+  let best: { left: number; right: number } | undefined;
+  for (const m of pauses) {
+    const at = m.index ?? 0;
+    if (at < 10 || t.length - (at + m[0].length) < 6) continue;
+    if (!best || Math.abs(at - mid) < Math.abs(best.left - mid)) {
+      best = { left: at + (m[0].startsWith(",") || m[0].startsWith(";") ? 1 : 0), right: at + m[0].length };
+    }
+  }
+  if (best) {
+    const left = clipAtWord(t.slice(0, best.left), max);
+    const right = clipAtWord(t.slice(best.right), max);
+    return right ? [`${left},`, right] : [left];
+  }
+  const first = clipAtWord(t, max);
+  const rest = t.slice(first.length).trim();
+  return rest ? [first, clipAtWord(rest, max)] : [first];
+};
+
 const joinOn = (topics: string[]): string => {
   if (topics.length === 1) return topics[0];
   if (topics.length === 2) return `${topics[0]} and ${topics[1]}`;
   const last = topics[topics.length - 1];
   return `${topics.slice(0, -1).join(", ")}, and ${last}`;
-};
-
-const sentenceCaseLine = (s: string): string => {
-  const t = s.replace(/\s+/g, " ").trim();
-  if (!t) return t;
-  const noYell = t.replace(/\b[A-Z]{2,}\b/g, (m) => m.charAt(0) + m.slice(1).toLowerCase());
-  return noYell.charAt(0).toUpperCase() + noYell.slice(1);
 };
 
 export const handInitials = (name: string): string => {
@@ -116,12 +145,12 @@ export const handInitials = (name: string): string => {
     .split(/\s+/)
     .filter(Boolean);
   if (parts.length >= 2) {
-    const a = (parts[0][0] || "C").toUpperCase();
+    const a = (parts[0][0] || "A").toUpperCase();
     const b = (parts[1][0] || "a").toLowerCase();
     return `${a}${b}`;
   }
-  const token = (parts[0] || "Ca").replace(/[^A-Za-z]/g, "");
-  const a = (token[0] || "C").toUpperCase();
+  const token = (parts[0] || "Aa").replace(/[^A-Za-z]/g, "");
+  const a = (token[0] || "A").toUpperCase();
   const vowel = token.slice(1).match(/[aeiou]/i);
   const b = (vowel ? vowel[0] : token[1] || "a").toLowerCase();
   return `${a}${b}`;
@@ -133,15 +162,17 @@ export const personName = (name: string): string => {
   return n;
 };
 
+// Poem lines stay lowercase. The hand writes few capitals, and a
+// lowercase line never loses its first letter to a missing glyph.
 export const stanzaLines = (letter: FolioLetter): string[] =>
-  letter.stanzas.map((s) => {
-    const topic = sentenceCaseLine(s.topic);
-    const beat = sentenceCaseLine(s.beat);
-    if (beat && beat.toLowerCase() !== topic.toLowerCase()) {
-      return beat.endsWith(".") ? beat : `${beat}.`;
-    }
-    return topic.endsWith(".") ? topic : `${topic}.`;
-  });
+  letter.stanzas.flatMap((s) =>
+    s.lines.map((line, i) => {
+      const isLast = i === s.lines.length - 1;
+      const t = line.replace(/\s+/g, " ").trim().toLowerCase();
+      if (!isLast) return t;
+      return /[.,]$/.test(t) ? t.replace(/,+$/, ".") : `${t}.`;
+    }),
+  );
 
 const looksLikeSessionId = (topic: string): boolean =>
   /^sess(ion)?[_\s-]/i.test(topic) || /^session\s/i.test(topic);
@@ -160,6 +191,11 @@ const sessionsInOrder = (events: LedgerEvent[]): LedgerEvent[][] => {
   return order.map((id) => bySession.get(id) ?? []);
 };
 
+// A non-silent day reads as one poem. These bound its length so the
+// hand still fits one A5 page.
+export const MAX_STANZAS = 6;
+export const MAX_POEM_LINES = 10;
+
 export const composeLetter = (
   day: string,
   events: LedgerEvent[],
@@ -167,6 +203,7 @@ export const composeLetter = (
 ): FolioLetter => {
   const seen = new Set<string>();
   const stanzas: LetterStanza[] = [];
+  let poemLines = 0;
 
   for (const sess of sessionsInOrder(events)) {
     const user = sess.find((e) => e.kind === "message" && e.role === "user");
@@ -178,8 +215,13 @@ export const composeLetter = (
     const key = topic.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    stanzas.push({ topic, beat: firstSentence(raw) });
-    if (stanzas.length >= 4) break;
+    const beat = firstSentence(raw, 130);
+    const source = beat && beat.toLowerCase() !== topic.toLowerCase() ? beat : topic;
+    const lines = breathLines(source);
+    if (!lines.length) continue;
+    stanzas.push({ topic, lines });
+    poemLines += lines.length;
+    if (stanzas.length >= MAX_STANZAS || poemLines >= MAX_POEM_LINES) break;
   }
 
   const silent = stanzas.length === 0;
