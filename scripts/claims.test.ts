@@ -74,6 +74,47 @@ test("letter is silent when topics cannot be extracted", () => {
   assert.match(withTopic.opening, /letter/);
 });
 
+test("a day of machine noise stays silent instead of writing a junk poem", () => {
+  const noisy = [
+    "You are the PR review agent for this repository. Review every open pull request.",
+    "Scheduled task 01a0696d-8289-7dc3-965a-9f9a7e54747c (every 30 minutes): /thermo-nuclear-review https://github.com/clodoan/folio",
+    "call-51c99d8e-82ff-4bcb-a371-3752b0d45be5-236",
+    "https://github.com/clodoan/folio/commit/4f98a376be53cad23832615ff49ec14ce4179e0e",
+    "51c99d8e82ff4bcba3713752b0d45be5",
+    "sand-subagent-a1b2c3d4 bc-8f2a91c4",
+    "<system-reminder>the user is away, hold all output</system-reminder>",
+  ];
+  const events = noisy.map((text, i) =>
+    event({ id: `n${i}`, sessionId: `noisy-${i}`, summary: text, payload: { text } }),
+  );
+  const letter = composeLetter("2026-09-03", events, { name: "Ada" });
+  assert.equal(letter.silent, true);
+  assert.equal(letter.opening, "");
+  assert.equal(letter.stanzas.length, 0);
+});
+
+test("ids, urls, and schedules never leak into a poem beside real work", () => {
+  const sessions: [string, string][] = [
+    ["s1", "You are the PR review agent for call-51c99d8e-82ff-4bcb-a371-3752b0d45be5-236."],
+    ["s2", "Scheduled task 01a0696d-8289-7dc3-965a-9f9a7e54747c (every 15 minutes): /thermo-nuclear-review https://github.com/clodoan/folio"],
+    ["s3", "ship the journal export, design notes at https://github.com/clodoan/folio/issues/5"],
+    ["s4", "paste the token ghp_9aB3xYz0123456789abcdefGHI into the config before the build"],
+    ["s5", "fix the letter export before dusk, see commit 4f98a376be53c"],
+  ];
+  const events = sessions.map(([sessionId, text], i) =>
+    event({ id: `m${i}`, sessionId, summary: text, payload: { text } }),
+  );
+  const letter = composeLetter("2026-09-03", events, { name: "Ada" });
+  assert.equal(letter.silent, false);
+  assert.match(letter.opening, /journal/);
+  assert.match(letter.opening, /letter/);
+  const machine =
+    /https?:|github\.com|\bcall-|\bbc-|sand-subagent|scheduled task|you are the|ghp_|[0-9a-f]{8}-[0-9a-f]{4}|(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,}/i;
+  for (const text of [letter.opening, ...stanzaLines(letter), letter.close]) {
+    assert.equal(machine.test(text), false, text);
+  }
+});
+
 test("agent registry is the list harvest probes, grok first", () => {
   const ids = AGENT_KINDS.map((k) => k.id);
   assert.deepEqual(ids, [
