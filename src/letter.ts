@@ -98,21 +98,25 @@ const userText = (ev: LedgerEvent | undefined): string => {
   return ev.summary ?? "";
 };
 
-// Dropping a URL or id can leave a line hanging on its preposition.
+// Dropping a URL or id can leave a line hanging on its preposition or
+// stranded inside brackets; the hand writes words, not typography.
 const soften = (s: string): string =>
   s
+    .replace(/[()[\]{}<>|:;"]/g, " ")
     .replace(/\s+/g, " ")
     .replace(/[.,;:!?]+$/g, "")
     .trim()
-    .replace(/\s+(?:at|in|on|to|from|via|see)$/i, "");
+    .replace(/\s+(?:at|in|on|to|from|via|see|and|or|but)$/i, "");
 
 export const ordinaryNoun = (text: string): string => {
   let t = stripUserChrome(text);
   if (!t || MACHINE_CHROME.test(t)) return "";
+  // A quote can carry chrome too: prose about a "Scheduled task" must
+  // not put the schedule back on the page.
   const quoted = quotedPhrase(t);
   if (quoted) {
     const q = quoted.split(/\s+/).slice(0, 4).join(" ");
-    if (q && hasHumanWord(q)) return soften(q);
+    if (q && hasHumanWord(q) && !MACHINE_CHROME.test(q)) return soften(q);
   }
   t = (t.split(/[.!?]/)[0] ?? t).trim();
   for (const n of NOUNS) {
@@ -147,11 +151,7 @@ const clipAtWord = (t: string, max: number): string => {
 
 // Split one sentence into one or two breath lines at a natural pause.
 export const breathLines = (sentence: string, max = BREATH_MAX): string[] => {
-  const t = sentence
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/[.;:!?]+$/g, "")
-    .replace(/\s+(?:at|in|on|to|from|via|see)$/i, "");
+  const t = soften(sentence);
   if (!t) return [];
   if (t.length <= max) return [t];
   const pauses = [...t.matchAll(/,\s+|;\s+|\s+(?=(?:and|then|so|but|while|to|into|with|for)\s)/g)];
