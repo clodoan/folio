@@ -1,8 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
+// `command` is a shell builtin, not an executable, so it must run through sh.
 function which(bin: string): boolean {
-  const r = spawnSync("command", ["-v", bin], { encoding: "utf8" });
+  const r = spawnSync("/bin/sh", ["-c", `command -v ${bin}`], { encoding: "utf8" });
   return r.status === 0 && Boolean((r.stdout || "").trim());
 }
 
