@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FOLIO_HOME } from "./folio-config.ts";
@@ -19,6 +19,29 @@ export const markDelivered = (day: string): void => {
   const p = deliveredFlag(day);
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, "1\n", "utf8");
+};
+
+// After delivery the day scratch has served its purpose. Drop that day's
+// JSONL and older ones so transcript bodies do not pile under ~/.folio.
+export const purgeDayScratch = (day: string): string[] => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return [];
+  let names: string[];
+  try {
+    names = readdirSync(DATA_DAYS);
+  } catch {
+    return [];
+  }
+  const removed: string[] = [];
+  for (const name of names) {
+    const m = /^(\d{4}-\d{2}-\d{2})\.jsonl$/.exec(name);
+    if (!m || m[1] > day) continue;
+    try {
+      unlinkSync(join(DATA_DAYS, name));
+      removed.push(m[1]);
+    } catch {
+    }
+  }
+  return removed.sort();
 };
 
 export const ensureFolioData = (): void => {

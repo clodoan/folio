@@ -3,7 +3,7 @@ import { loadFolioConfig } from "./folio-config.ts";
 import { harvestOnce } from "./harvest.ts";
 import { writeFolioLetter } from "./folio-letter.ts";
 import { notifyLetter } from "./notify.ts";
-import { isDelivered, markDelivered } from "./paths.ts";
+import { isDelivered, markDelivered, purgeDayScratch } from "./paths.ts";
 
 export const clockParts = (timeZone: string, now = new Date()): { minutes: number } => {
   const hour = Number.parseInt(
@@ -39,6 +39,7 @@ export const runDusk = (opts?: { now?: Date; force?: boolean }): void => {
   const openPath = out.homePdf || out.pdfPath || out.homePng || out.pngPath || "";
   notifyLetter({ day: out.day, body: out.opening, openPath });
   markDelivered(day);
+  purgeDayScratch(day);
   console.log(`dusk delivered ${day}`);
   console.log(out.opening);
 };

@@ -1,7 +1,7 @@
 import { harvestOnce } from "./harvest.ts";
 import { writeFolioLetter } from "./folio-letter.ts";
 import { openPreview } from "./notify.ts";
-import { markDelivered } from "./paths.ts";
+import { markDelivered, purgeDayScratch } from "./paths.ts";
 
 harvestOnce();
 const day = process.argv[2];
@@ -20,4 +20,5 @@ if (out.silent) {
   const preview = out.homePdf || out.pdfPath || out.homePng || out.pngPath;
   if (process.platform === "darwin" && preview) openPreview(preview);
   markDelivered(out.day);
+  purgeDayScratch(out.day);
 }
